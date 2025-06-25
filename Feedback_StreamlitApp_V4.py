@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[16]:
 
 
 get_ipython().system('pip install streamlit openai')
@@ -114,4 +114,13 @@ if st.session_state.chat_history:
         # Create new Excel file
         with pd.ExcelWriter(log_file, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
+
+
+
+
+
+# In[18]:
+
+
+
 
