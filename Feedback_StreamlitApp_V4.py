@@ -48,7 +48,7 @@ def call_llm(prompt, variant):
         model="gpt-4.1-nano-2025-04-14",
         messages=messages
     )
-    return response.choices[0].message["content"]
+    return response.choices[0].message.content
 
 # --- APP UI ---
 st.title("LLM Study Chatbot")
