@@ -14,7 +14,7 @@ from io import BytesIO
 
 
 # Set your OpenAI API key
-client = OpenAI(api_key=st.secrets["openai_api_key"])
+client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
 
 # --- CONFIG ---
 SURVEY_BASE_URL = "https://bmw.qualtrics.com/jfe/form/SURVEY_ID"
