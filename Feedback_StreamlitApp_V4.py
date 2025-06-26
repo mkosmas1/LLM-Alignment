@@ -4,8 +4,6 @@
 # In[16]:
 
 
-get_ipython().system('pip install streamlit openai')
-get_ipython().system('pip install pandas openpyxl')
 import streamlit as st
 import uuid
 import random
@@ -16,11 +14,11 @@ from io import BytesIO
 
 
 # Set your OpenAI API key
-openai.api_key = st.secrets["openai_api_key"]
+client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
 
 # --- CONFIG ---
 SURVEY_BASE_URL = "https://bmw.qualtrics.com/jfe/form/SURVEY_ID"
-LLM_VARIANTS = ["vanilla", "value_aware"]
+LLM_VARIANTS = ["vanilla", "aligned"]
 
 # --- SETUP SESSION STATE ---
 if "user_id" not in st.session_state:
@@ -37,7 +35,7 @@ if "show_survey" not in st.session_state:
 
 # --- LLM FUNCTIONS ---
 def call_llm(prompt, variant):
-    if variant == "value_aware":
+    if variant == "aligned":
         system_prompt = "You are an AI assistant representing BMW. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust. Transparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know. Additionally, include some suggestions in your response, how the alignment with BMW's values could be improved."
         messages = [
             {"role": "system", "content": system_prompt},
@@ -46,14 +44,14 @@ def call_llm(prompt, variant):
     else:  # vanilla
         messages = [{"role": "user", "content": prompt}]
 
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4.1-nano-2025-04-14",
         messages=messages
     )
-    return response.choices[0].message["content"]
+    return response.choices[0].message.content
 
 # --- APP UI ---
-st.title("🧠 LLM Study Chatbot")
+st.title("LLM Study Chatbot")
 
 st.markdown(f"**You are interacting with variant:** `{st.session_state.variant}`")
 st.markdown("Ask any question or try a task...")
@@ -91,7 +89,7 @@ if st.button("End Chat and Take Survey"):
 if st.session_state.show_survey:
     survey_url = f"{SURVEY_BASE_URL}?App_Variant={st.session_state.variant}&User_ID={st.session_state.user_id}"
     st.success("Thank you! Please take the short survey below:")
-    st.markdown(f"[🔗 Go to Survey]({survey_url})", unsafe_allow_html=True)
+    st.markdown(f"[Go to Survey]({survey_url})", unsafe_allow_html=True)
 
 # --- Save logs to a single Excel file (cumulative row-wise) ---
 import pandas as pd
