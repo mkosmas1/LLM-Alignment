@@ -4,8 +4,6 @@
 # In[16]:
 
 
-get_ipython().system('pip install streamlit openai')
-get_ipython().system('pip install pandas openpyxl')
 import streamlit as st
 import uuid
 import random
@@ -53,7 +51,7 @@ def call_llm(prompt, variant):
     return response.choices[0].message["content"]
 
 # --- APP UI ---
-st.title("🧠 LLM Study Chatbot")
+st.title("LLM Study Chatbot")
 
 st.markdown(f"**You are interacting with variant:** `{st.session_state.variant}`")
 st.markdown("Ask any question or try a task...")
