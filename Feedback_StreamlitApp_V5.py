@@ -67,7 +67,7 @@ st.title("LLM Study Chatbot")
 if st.session_state.show_landing_page:
     # You can customize the content of your landing page here
     st.title("Welcome to the LLM Study Chatbot")
-    st.write("This is a chatbot designed for a study on large language models (LLMs). Using the chatbot, please execute the task shown below and in the chatbot interface. Once the task has been executed, please take the survey. The survey can be accessed via the link shown when clicking on the button 'Take Survey'. There is no need to save task results. To close this window, please click on 'X'.")
+    st.write("This is a chatbot designed for a study on large language models (LLMs). Using the chatbot, please execute the task shown in the chatbot interface. Once the task has been executed, please take the survey. The survey can be accessed via the link shown when clicking on the button 'Take Survey'. There is no need to save task results. To close this window and access the chatbot interface, please click on 'X'.")
 
     # Add a close button
     if st.button("X"):
@@ -175,35 +175,4 @@ else:
 
 
 
-
-
-# In[ ]:
-
-
-if "show_landing_page" not in st.session_state:
-    st.session_state.show_landing_page = True
-
-
-# In[ ]:
-
-
-if st.session_state.show_landing_page:
-    # You can customize the content of your landing page here
-    st.title("Welcome to the LLM Study Chatbot")
-    st.write("This is a chatbot designed for a study on LLM alignment. Please interact with the chatbot and provide feedback through the survey.")
-    # We'll add the close button in the next step
-
-
-# In[ ]:
-
-
-if st.session_state.show_landing_page:
-    # You can customize the content of your landing page here
-    st.title("Welcome to the LLM Study Chatbot")
-    st.write("This is a chatbot designed for a study on LLM alignment. Please interact with the chatbot and provide feedback through the survey.")
-
-    # Add a close button
-    if st.button("Close"):
-        st.session_state.show_landing_page = False
-        # st.experimental_rerun() # Rerun the app to hide the landing page
 
