@@ -102,7 +102,9 @@ st.title("LLM Study Chatbot")
 
 # Display the landing page if show_landing_page is True
 if st.session_state.show_landing_page:
-    st.write("This is a chatbot designed for a study on large language models (LLMs). Please use the chatbot to execute the task shown in the chatbot interface. The task is to request help from the chatbot to write a specific communication. You may interact with the chatbot until you are satisfied with the proposed draft.  \nTake the survey once you have executed the task. The survey can be accessed via the link shown after clicking on the button 'Take Survey'. There is no need to save task results.  \nTo close this window and access the chatbot interface, please double-click on 'X'.")
+    st.write("This is a chatbot designed for a study on large language models (LLMs). Please use the chatbot to execute the task shown in the chatbot interface. The task is to request help from the chatbot to write a specific communication. You may interact with the chatbot until you are satisfied with the proposed draft.")
+    st.write("Take the survey once you have executed the task. The survey can be accessed via the link shown after clicking on the button 'Take Survey'. There is no need to save task results.")
+    st.write("To close this window and access the chatbot interface, please double-click on 'X'.")
 
     if st.button("X"):
         st.session_state.show_landing_page = False
@@ -182,7 +184,7 @@ else:
 
         media = MediaIoBaseUpload(open(excel_file_path, "rb"),
                                   mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                  resumable=True)
+                                  resumable=F)
 
         if items:
             file_id = items[0]['id']
