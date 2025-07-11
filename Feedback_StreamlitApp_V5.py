@@ -184,7 +184,7 @@ else:
 
         media = MediaIoBaseUpload(open(excel_file_path, "rb"),
                                   mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                  resumable=F)
+                                  resumable=False)
 
         if items:
             file_id = items[0]['id']
