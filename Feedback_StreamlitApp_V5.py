@@ -167,10 +167,10 @@ else:
         st.chat_message("assistant").markdown(chat["response"])
 
     # Now, display the task description right above the chat input
-    st.markdown("---") # Optional: Add a separator for clarity
+    #st.markdown("---") # Optional: Add a separator for clarity
     st.markdown(f"**Current Task {current_task_index + 1}/{total_tasks}:** {current_task_description}")
-    st.markdown("Interact with the chatbot to complete this task. Once you are done, click the button below to proceed.")
-    st.markdown("---") # Optional: Another separator
+    #st.markdown("Interact with the chatbot to complete this task. Once you are done, click the button below to proceed.")
+    #st.markdown("---") # Optional: Another separator
 
     prompt = st.chat_input("Your message")
     if prompt:
@@ -232,36 +232,4 @@ else:
             st.success("Thank you! Please take the short survey below:")
             st.markdown(f"[Go to Survey]({survey_url})", unsafe_allow_html=True)
 
-    # --- SAVE LOG TO EXCEL ---
-    log_file = Path("chat_logs_all.xlsx")
-
-    # Only write the latest interaction to the log file
-    if prompt: # This ensures we only log after a user has prompted and a response received
-        latest_chat_entry = st.session_state.chat_history[-1] # Get the very last added entry
-        df_to_save = pd.DataFrame([latest_chat_entry]) # Create a DataFrame with only the latest entry
-
-        if log_file.exists():
-            with pd.ExcelWriter(log_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-                try:
-                    existing_df = pd.read_excel(log_file)
-                    start_row = len(existing_df) + 1
-                except Exception:
-                    # Handle cases where file is empty or corrupted, start from 1 (after header)
-                    start_row = 1
-                    # If the file didn't exist or was unreadable, ensure header is written for the first row
-                    df_to_save.to_excel(writer, index=False, header=True, startrow=0)
-                    # No return here, allow the single row to be written as it's the first.
-                else: # Only write if no exception occurred, meaning existing_df was read
-                    df_to_save.to_excel(writer, index=False, header=False, startrow=start_row)
-        else: # File does not exist, so write with header
-            with pd.ExcelWriter(log_file, engine='openpyxl') as writer:
-                df_to_save.to_excel(writer, index=False, header=True) # Write header for new file
-
-    # --- UPLOAD TO GOOGLE DRIVE ---
-    # The function definition for upload_to_gdrive should ideally be at the top level of your script,
-    # but for a complete replacement of the block, it's included here.
-
-
-    if log_file.exists():
-        upload_to_gdrive(str(log_file))
 
