@@ -105,8 +105,8 @@ st.title("LLM Study Chatbot")
 # Display the landing page if show_landing_page is True
 if st.session_state.show_landing_page:
     # You can customize the content of your landing page here
-    st.title("Welcome to the LLM Study Chatbot")
-    st.write("This is a chatbot designed for a study on large language models (LLMs). Please use the chatbot to execute the task shown in the chatbot interface. The task is to request help from the chatbot to write a specific communication. You may interact with the chatbot until you are satisfied with the proposed draft. \nTake the survey once you have executed the task. The survey can be accessed via the link shown when clicking on the button 'Take Survey'. There is no need to save task results. \nTo close this window and access the chatbot interface, please double-click on 'X'.")
+    st.write("This is a chatbot designed for a study on large language models (LLMs). Please use the chatbot to execute the task shown in the chatbot interface. The task is to request help from the chatbot to write a specific communication. You may interact with the chatbot until you are satisfied with the proposed draft.  \nTake the survey once you have executed the task. The survey can be accessed via the link shown after clicking on the button 'Take Survey'. There is no need to save task results.  \nTo close this window and access the chatbot interface, please double-click on 'X'.")
+    # If that doesn't work, write each paragraph in an own st.write("") call
 
     # Add a close button
     if st.button("X"):
@@ -179,39 +179,43 @@ else:
     from googleapiclient.http import MediaIoBaseUpload
 
     def upload_to_gdrive(excel_file_path):
-        creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
-        service = build("drive", "v3", credentials=creds)
+    creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
+    service = build("drive", "v3", credentials=creds)
 
-        file_name = "chat_logs_all.xlsx"
-        folder_id = st.secrets["gdrive"]["folder_id"]
+    file_name = "chat_logs_all.xlsx"
+    folder_id = st.secrets["gdrive"]["folder_id"]
 
-        # Check if the file exists in the folder
-        results = service.files().list(
-            q=f"name='{file_name}' and '{folder_id}' in parents",
-            fields="files(id)").execute()
-        items = results.get('files', [])
+    # Use supportsAllDrives=True
+    results = service.files().list(
+        q=f"name='{file_name}' and '{folder_id}' in parents",
+        fields="files(id)",
+        supportsAllDrives=True
+    ).execute()
+    items = results.get('files', [])
 
-        if items:
-            # File exists, update it
-            file_id = items[0]['id']
-            media = MediaIoBaseUpload(open(excel_file_path, "rb"),
-                                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                      chunksize=-1, resumable=True) # Added resumable=True and chunksize=-1
-            updated_file = service.files().update(
-                fileId=file_id,
-                media_body=media).execute() # Removed body=file_metadata
-            #st.success(f"Updated log file in Google Drive (file ID: {updated_file.get('id')})")
-        else:
-            # File doesn't exist, create it
-            file_metadata = {
-                "name": file_name,
-                "parents": [folder_id],
-                "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            }
-            media = MediaIoBaseUpload(open(excel_file_path, "rb"),
-                                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-            file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-            #st.success(f"Uploaded log file to Google Drive (file ID: {file.get('id')})")
+    media = MediaIoBaseUpload(open(excel_file_path, "rb"),
+                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                              resumable=True)
+
+    if items:
+        file_id = items[0]['id']
+        updated_file = service.files().update(
+            fileId=file_id,
+            media_body=media,
+            supportsAllDrives=True
+        ).execute()
+    else:
+        file_metadata = {
+            "name": file_name,
+            "parents": [folder_id],
+            "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True
+        ).execute()
 
 
     # Call uploader
