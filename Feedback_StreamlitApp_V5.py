@@ -57,7 +57,6 @@ if "variant" not in st.session_state:
         assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
         save_assignments(assignments_df, ASSIGNMENTS_FILE)
 
-
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -67,17 +66,16 @@ if "show_survey" not in st.session_state:
 if "show_landing_page" not in st.session_state:
     st.session_state.show_landing_page = True
 
-
 # --- LLM FUNCTIONS ---
 def call_llm(prompt, variant):
     if variant == "1":
-        system_prompt_feedback = "You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know. After your main response to the user prompt, include short and actionable recommendations how the alignment with company values could be improved. These recommendations should start with 'Recommendations:' (in bold) and consist of bullets." # Bisher: After your main response to the user prompt, include a short & precise suggestion how the alignment with company values could be improved.
+        system_prompt_feedback = "You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know. After your main response to the user prompt, include short and actionable recommendations how the alignment with company values could be improved. These recommendations should start with 'Recommendations:' (in bold) and consist of bullets."
         messages = [
             {"role": "system", "content": system_prompt_feedback},
             {"role": "user", "content": prompt}
         ]
     else:  # AlignedNoFeedback
-        system_prompt_no_feedback ="You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know."
+        system_prompt_no_feedback = "You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know."
         messages = [
             {"role": "system", "content": system_prompt_no_feedback},
             {"role": "user", "content": prompt}
@@ -91,10 +89,10 @@ def call_llm(prompt, variant):
 
 task_descriptions = [
     "Task 1...",
-    "Task 1...",
-    "Task 1...",
-    "Task 1...",
-    "Task 1..."
+    "Task 2...",
+    "Task 3...",
+    "Task 4...",
+    "Task 5..."
 ]
 
 total_tasks = len(task_descriptions)
@@ -104,28 +102,21 @@ st.title("LLM Study Chatbot")
 
 # Display the landing page if show_landing_page is True
 if st.session_state.show_landing_page:
-    # You can customize the content of your landing page here
     st.write("This is a chatbot designed for a study on large language models (LLMs). Please use the chatbot to execute the task shown in the chatbot interface. The task is to request help from the chatbot to write a specific communication. You may interact with the chatbot until you are satisfied with the proposed draft.  \nTake the survey once you have executed the task. The survey can be accessed via the link shown after clicking on the button 'Take Survey'. There is no need to save task results.  \nTo close this window and access the chatbot interface, please double-click on 'X'.")
-    # If that doesn't work, write each paragraph in an own st.write("") call
 
-    # Add a close button
     if st.button("X"):
         st.session_state.show_landing_page = False
-        # st.experimental_rerun() # Rerun the app to hide the landing page
+
 else:
-    #st.markdown(f"**You are interacting with variant:** `{st.session_state.variant}`")
     current_task_index = st.session_state.current_task_index
     current_task_description = task_descriptions[current_task_index]
     st.markdown(f"**Task {current_task_index + 1}/{total_tasks}:** {current_task_description}")
     st.markdown("Interact with the chatbot to complete this task. Once you are satisfied, click the button below to proceed.")
 
-
-    # Chat history
     for chat in st.session_state.chat_history:
         st.chat_message("user").markdown(chat["prompt"])
         st.chat_message("assistant").markdown(chat["response"])
 
-    # Chat input
     prompt = st.chat_input("Your message")
     if prompt:
         response = call_llm(prompt, st.session_state.variant)
@@ -142,18 +133,15 @@ else:
             "response": response,
         })
 
-    # Add button to go to the next task if not on the last task
     if current_task_index < total_tasks - 1:
         if st.button("Go to next task"):
             st.session_state.current_task_index += 1
             st.rerun()
     else:
-        # Show survey button only on the last task
         st.markdown("You have completed all tasks. Please take the survey to provide your feedback.")
         if st.button("Take Survey"):
             st.session_state.show_survey = True
 
-        # Show survey link
         if st.session_state.show_survey:
             survey_url = f"{SURVEY_BASE_URL}?App_Variant={st.session_state.variant}&User_ID={st.session_state.user_id}"
             st.success("Thank you! Please take the short survey below:")
@@ -179,46 +167,43 @@ else:
     from googleapiclient.http import MediaIoBaseUpload
 
     def upload_to_gdrive(excel_file_path):
-    creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
-    service = build("drive", "v3", credentials=creds)
+        creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
+        service = build("drive", "v3", credentials=creds)
 
-    file_name = "chat_logs_all.xlsx"
-    folder_id = st.secrets["gdrive"]["folder_id"]
+        file_name = "chat_logs_all.xlsx"
+        folder_id = st.secrets["gdrive"]["folder_id"]
 
-    # Use supportsAllDrives=True
-    results = service.files().list(
-        q=f"name='{file_name}' and '{folder_id}' in parents",
-        fields="files(id)",
-        supportsAllDrives=True
-    ).execute()
-    items = results.get('files', [])
-
-    media = MediaIoBaseUpload(open(excel_file_path, "rb"),
-                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                              resumable=True)
-
-    if items:
-        file_id = items[0]['id']
-        updated_file = service.files().update(
-            fileId=file_id,
-            media_body=media,
+        results = service.files().list(
+            q=f"name='{file_name}' and '{folder_id}' in parents",
+            fields="files(id)",
             supportsAllDrives=True
         ).execute()
-    else:
-        file_metadata = {
-            "name": file_name,
-            "parents": [folder_id],
-            "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        }
-        file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id",
-            supportsAllDrives=True
-        ).execute()
+        items = results.get('files', [])
 
+        media = MediaIoBaseUpload(open(excel_file_path, "rb"),
+                                  mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                  resumable=True)
 
-    # Call uploader
+        if items:
+            file_id = items[0]['id']
+            updated_file = service.files().update(
+                fileId=file_id,
+                media_body=media,
+                supportsAllDrives=True
+            ).execute()
+        else:
+            file_metadata = {
+                "name": file_name,
+                "parents": [folder_id],
+                "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            }
+            file = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id",
+                supportsAllDrives=True
+            ).execute()
+
     if log_file.exists():
         upload_to_gdrive(str(log_file))
 
