@@ -14,6 +14,83 @@ from io import BytesIO
 from pathlib import Path
 import os
 
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+# --- Function definition for Google Drive upload ---
+# This is largely your existing function, ensuring it takes file_path and file_name_on_drive
+def upload_to_gdrive(file_path, file_name_on_drive):
+    creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
+    service = build("drive", "v3", credentials=creds)
+
+    folder_id = st.secrets["gdrive"]["folder_id"]
+
+    results = service.files().list(
+        q=f"name='{file_name_on_drive}' and '{folder_id}' in parents",
+        fields="files(id)",
+        supportsAllDrives=True
+    ).execute()
+    items = results.get('files', [])
+
+    # Determine mimetype based on file extension
+    mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if file_name_on_drive.endswith('.xlsx') else "text/csv"
+
+    media = MediaIoBaseUpload(open(file_path, "rb"),
+                              mimetype=mimetype,
+                              resumable=True)
+
+    if items:
+        file_id = items[0]['id']
+        service.files().update(
+            fileId=file_id,
+            media_body=media,
+            supportsAllDrives=True
+        ).execute()
+    else:
+        file_metadata = {
+            "name": file_name_on_drive,
+            "parents": [folder_id],
+            "mimeType": mimetype
+        }
+        service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True
+        ).execute()
+
+# --- NEW: Function definition for Google Drive download ---
+def download_from_gdrive(file_name_on_drive, local_file_path):
+    creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
+    service = build("drive", "v3", credentials=creds)
+
+    folder_id = st.secrets["gdrive"]["folder_id"]
+
+    results = service.files().list(
+        q=f"name='{file_name_on_drive}' and '{folder_id}' in parents",
+        fields="files(id)",
+        supportsAllDrives=True
+    ).execute()
+    items = results.get('files', [])
+
+    if items:
+        file_id = items[0]['id']
+        request = service.files().get_media(fileId=file_id)
+
+        file_content = BytesIO()
+        downloader = MediaIoBaseDownload(file_content, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+
+        file_content.seek(0)
+
+        with open(local_file_path, "wb") as f:
+            f.write(file_content.read())
+        return True
+    return False
+
+
 # Set your OpenAI API key
 client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
 
@@ -32,12 +109,44 @@ if "current_task_index" not in st.session_state:
 
 # --- VARIANT ASSIGNMENT (FILE-BASED) ---
 def load_assignments(filename):
-    if os.path.exists(filename):
-        return pd.read_csv(filename)
+    gdrive_file_name = Path(filename).name # Get just the filename (e.g., "variant_assignments.csv")
+    local_path = Path(filename) # The local path where the file will be saved/read
+
+    # 1. Try to download from Google Drive first
+    try:
+        if download_from_gdrive(gdrive_file_name, local_path):
+            st.info(f"Loaded assignments from Google Drive: {gdrive_file_name}")
+            return pd.read_csv(local_path)
+    except Exception as e:
+        # Catch any error during GDrive download (e.g., network, permissions, file not found initially)
+        st.warning(f"Could not download '{gdrive_file_name}' from Google Drive: {e}. Checking local file.")
+
+    # 2. Fallback to local file if GDrive download failed or file not found on Drive
+    if local_path.exists():
+        st.info(f"Loaded assignments from local file: {local_path.name}")
+        return pd.read_csv(local_path)
+
+    # 3. If neither exists, create an empty DataFrame
+    st.info("No existing assignment file found (local or Drive), creating new DataFrame.")
     return pd.DataFrame(columns=["user_id", "variant"])
 
 def save_assignments(df, filename):
-    df.to_csv(filename, index=False)
+    local_path = Path(filename)
+    gdrive_file_name = local_path.name
+
+    # 1. Save locally
+    df.to_csv(local_path, index=False)
+    st.info(f"Saved assignments locally to: {local_path.name}")
+
+    # 2. Upload to Google Drive
+    try:
+        # Use the common upload_to_gdrive function
+        upload_to_gdrive(local_path, gdrive_file_name)
+        st.success(f"Uploaded assignments to Google Drive: {gdrive_file_name}")
+    except Exception as e:
+        st.error(f"Failed to upload assignments to Google Drive: {e}")
+
+
 
 assignments_df = load_assignments(ASSIGNMENTS_FILE)
 
@@ -47,15 +156,22 @@ if "variant" not in st.session_state:
     if not user_assignment.empty:
         st.session_state.variant = user_assignment["variant"].iloc[0]
     else:
-        # Assign variant based on least frequent
+        # Assign variant based on least frequent, with random tie-breaking
         variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
-        least_assigned_variant = variant_counts.idxmin()
-        st.session_state.variant = least_assigned_variant
+
+        # Find the minimum count among all variants
+        min_count = variant_counts.min()
+
+        # Get all variants that have this minimum count
+        least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
+
+        # Randomly choose one from the least assigned variants
+        st.session_state.variant = random.choice(least_assigned_variants)
 
         # Add new assignment and save
         new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
         assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
-        save_assignments(assignments_df, ASSIGNMENTS_FILE)
+        save_assignments(assignments_df, ASSIGNMENTS_FILE) # This call now uses the updated save_assignments
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -65,53 +181,6 @@ if "show_survey" not in st.session_state:
 
 if "show_landing_page" not in st.session_state:
     st.session_state.show_landing_page = True
-
-
-
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
-
-# --- Function definition for Google Drive upload ---
-def upload_to_gdrive(excel_file_path):
-    creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
-    service = build("drive", "v3", credentials=creds)
-
-    file_name = "chat_logs_all.xlsx"
-    folder_id = st.secrets["gdrive"]["folder_id"]
-
-    results = service.files().list(
-        q=f"name='{file_name}' and '{folder_id}' in parents",
-        fields="files(id)",
-        supportsAllDrives=True
-    ).execute()
-    items = results.get('files', [])
-
-    media = MediaIoBaseUpload(open(excel_file_path, "rb"),
-                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                              resumable=True)
-
-    if items:
-        file_id = items[0]['id']
-        updated_file = service.files().update(
-            fileId=file_id,
-            media_body=media,
-            supportsAllDrives=True
-        ).execute()
-    else:
-        file_metadata = {
-            "name": file_name,
-            "parents": [folder_id],
-            "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        }
-        file = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id",
-            supportsAllDrives=True
-        ).execute()
-
-
 
 
 # --- LLM FUNCTIONS ---
