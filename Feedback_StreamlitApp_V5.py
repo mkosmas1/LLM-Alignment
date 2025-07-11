@@ -66,6 +66,54 @@ if "show_survey" not in st.session_state:
 if "show_landing_page" not in st.session_state:
     st.session_state.show_landing_page = True
 
+
+
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+
+# --- Function definition for Google Drive upload ---
+def upload_to_gdrive(excel_file_path):
+    creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
+    service = build("drive", "v3", credentials=creds)
+
+    file_name = "chat_logs_all.xlsx"
+    folder_id = st.secrets["gdrive"]["folder_id"]
+
+    results = service.files().list(
+        q=f"name='{file_name}' and '{folder_id}' in parents",
+        fields="files(id)",
+        supportsAllDrives=True
+    ).execute()
+    items = results.get('files', [])
+
+    media = MediaIoBaseUpload(open(excel_file_path, "rb"),
+                              mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                              resumable=True)
+
+    if items:
+        file_id = items[0]['id']
+        updated_file = service.files().update(
+            fileId=file_id,
+            media_body=media,
+            supportsAllDrives=True
+        ).execute()
+    else:
+        file_metadata = {
+            "name": file_name,
+            "parents": [folder_id],
+            "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True
+        ).execute()
+
+
+
+
 # --- LLM FUNCTIONS ---
 def call_llm(prompt, variant):
     if variant == "1":
@@ -121,23 +169,51 @@ else:
     # Now, display the task description right above the chat input
     st.markdown("---") # Optional: Add a separator for clarity
     st.markdown(f"**Current Task {current_task_index + 1}/{total_tasks}:** {current_task_description}")
-    st.markdown("Interact with the chatbot to complete this task. Once you are satisfied, click the button below to proceed.")
+    st.markdown("Interact with the chatbot to complete this task. Once you are done, click the button below to proceed.")
     st.markdown("---") # Optional: Another separator
 
     prompt = st.chat_input("Your message")
     if prompt:
         response = call_llm(prompt, st.session_state.variant)
 
-        # Append to history *before* displaying to ensure it's in order
-        st.session_state.chat_history.append({
+        # Create the log entry for the *current* interaction
+        log_entry = {
             "timestamp": datetime.now().isoformat(),
             "user_id": st.session_state.user_id,
             "variant": st.session_state.variant,
             "task_index": st.session_state.current_task_index,
             "prompt": prompt,
             "response": response,
-        })
-        # Rerun to show the new messages in the history
+        }
+        st.session_state.chat_history.append(log_entry) # Add to session state
+
+        # --- SAVE THE SINGLE NEW LOG ENTRY TO EXCEL IMMEDIATELY ---
+        log_file = Path("chat_logs_all.xlsx")
+        df_to_save = pd.DataFrame([log_entry]) # Create DataFrame with ONLY the new entry
+
+        if log_file.exists():
+            with pd.ExcelWriter(log_file, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+                try:
+                    existing_df = pd.read_excel(log_file)
+                    start_row = len(existing_df) + 1
+                    df_to_save.to_excel(writer, index=False, header=False, startrow=start_row)
+                except Exception as e:
+                    st.warning(f"Could not append to existing log file, recreating: {e}")
+                    # If appending fails, re-create the file with headers
+                    with pd.ExcelWriter(log_file, engine='openpyxl') as new_writer:
+                        df_to_save.to_excel(new_writer, index=False, header=True)
+        else: # File does not exist, so create it with header
+            with pd.ExcelWriter(log_file, engine='openpyxl') as writer:
+                df_to_save.to_excel(writer, index=False, header=True)
+
+        # --- UPLOAD TO GOOGLE DRIVE IMMEDIATELY AFTER SAVING ---
+        if log_file.exists():
+            try:
+                upload_to_gdrive(str(log_file))
+            except Exception as e:
+                st.error(f"Failed to upload log to Google Drive: {e}")
+
+        # Now, trigger rerun to update the displayed chat history
         st.rerun()
 
     # The buttons for navigation should appear after the main chat interaction area
@@ -184,47 +260,7 @@ else:
     # --- UPLOAD TO GOOGLE DRIVE ---
     # The function definition for upload_to_gdrive should ideally be at the top level of your script,
     # but for a complete replacement of the block, it's included here.
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaIoBaseUpload
 
-    def upload_to_gdrive(excel_file_path):
-        creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
-        service = build("drive", "v3", credentials=creds)
-
-        file_name = "chat_logs_all.xlsx"
-        folder_id = st.secrets["gdrive"]["folder_id"]
-
-        results = service.files().list(
-            q=f"name='{file_name}' and '{folder_id}' in parents",
-            fields="files(id)",
-            supportsAllDrives=True
-        ).execute()
-        items = results.get('files', [])
-
-        media = MediaIoBaseUpload(open(excel_file_path, "rb"),
-                                  mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                  resumable=True)
-
-        if items:
-            file_id = items[0]['id']
-            updated_file = service.files().update(
-                fileId=file_id,
-                media_body=media,
-                supportsAllDrives=True
-            ).execute()
-        else:
-            file_metadata = {
-                "name": file_name,
-                "parents": [folder_id],
-                "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            }
-            file = service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields="id",
-                supportsAllDrives=True
-            ).execute()
 
     if log_file.exists():
         upload_to_gdrive(str(log_file))
