@@ -16,7 +16,7 @@ import os
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # --- Function definition for Google Drive upload ---
 # This is largely your existing function, ensuring it takes file_path and file_name_on_drive
 def upload_to_gdrive(file_path, file_name_on_drive):
@@ -278,9 +278,11 @@ else:
         # --- UPLOAD TO GOOGLE DRIVE IMMEDIATELY AFTER SAVING ---
         if log_file.exists():
             try:
-                upload_to_gdrive(str(log_file))
+                # Pass both the local file path and the desired file name on Google Drive
+                upload_to_gdrive(str(log_file), "chat_logs_all.xlsx") # <--- CHANGED HERE
             except Exception as e:
                 st.error(f"Failed to upload log to Google Drive: {e}")
+
 
         # Now, trigger rerun to update the displayed chat history
         st.rerun()
