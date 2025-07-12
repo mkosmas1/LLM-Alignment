@@ -109,42 +109,56 @@ if "current_task_index" not in st.session_state:
 
 # --- VARIANT ASSIGNMENT (FILE-BASED) ---
 def load_assignments(filename):
-    gdrive_file_name = Path(filename).name # Get just the filename (e.g., "variant_assignments.csv")
-    local_path = Path(filename) # The local path where the file will be saved/read
+    gdrive_file_name = Path(filename).name
+    local_path = Path(filename)
 
-    # 1. Try to download from Google Drive first
+    # Create a placeholder for the prominent spinner
+    spinner_placeholder = st.empty()
+    spinner_placeholder.markdown("<h1 style='text-align: center; font-size: 150px;'>🔄</h1>", unsafe_allow_html=True)
+
     try:
+        # 1. Try to download from Google Drive first
         if download_from_gdrive(gdrive_file_name, local_path):
-            #st.info(f"Loaded assignments from Google Drive: {gdrive_file_name}")
+            # Removed st.info message here to avoid textual loading info
             return pd.read_csv(local_path)
     except Exception as e:
-        # Catch any error during GDrive download (e.g., network, permissions, file not found initially)
-        st.warning(f"Could not download '{gdrive_file_name}' from Google Drive: {e}. Checking local file.")
+        # Suppress the specific error message here as per "no textual information" for loading
+        # You might want to log this error to your console for debugging, e.g., print(f"DEBUG: Could not download from GDrive: {e}")
+        pass
+    finally:
+        spinner_placeholder.empty() # Clear spinner after GDrive attempt
 
     # 2. Fallback to local file if GDrive download failed or file not found on Drive
     if local_path.exists():
-        #st.info(f"Loaded assignments from local file: {local_path.name}")
+        # Removed st.info message here to avoid textual loading info
         return pd.read_csv(local_path)
 
     # 3. If neither exists, create an empty DataFrame
-    st.info("No existing assignment file found (local or Drive), creating new DataFrame.")
+    # This message is about the state of the app (no file found), not a loading indicator, so it remains.
+    #st.info("No existing assignment file found (local or Drive), creating new DataFrame.")
     return pd.DataFrame(columns=["user_id", "variant"])
 
 def save_assignments(df, filename):
     local_path = Path(filename)
     gdrive_file_name = local_path.name
 
-    # 1. Save locally
+    # 1. Save locally (this operation is usually very fast)
     df.to_csv(local_path, index=False)
-    st.info(f"Saved assignments locally to: {local_path.name}")
+    # Removed st.info message here
 
-    # 2. Upload to Google Drive
+    # 2. Create a placeholder for the prominent spinner for Google Drive upload
+    spinner_placeholder = st.empty()
+    spinner_placeholder.markdown("<h1 style='text-align: center; font-size: 150px;'>🔄</h1>", unsafe_allow_html=True)
+
     try:
-        # Use the common upload_to_gdrive function
+        # Upload to Google Drive
         upload_to_gdrive(local_path, gdrive_file_name)
-        #st.success(f"Uploaded assignments to Google Drive: {gdrive_file_name}")
+        # Removed st.success message here
     except Exception as e:
-        st.error(f"Failed to upload assignments to Google Drive: {e}")
+        # Error messages are about failure, not just "loading", so keeping this for user awareness
+        #st.error(f"Failed to upload assignments to Google Drive: {e}")
+    finally:
+        spinner_placeholder.empty() # Clear spinner after GDrive upload attempt
 
 
 
@@ -176,11 +190,23 @@ def call_llm(prompt, variant):
             {"role": "user", "content": prompt}
         ]
 
-    response = client.chat.completions.create(
-        model="gpt-4.1-nano-2025-04-14",
-        messages=messages
-    )
-    return response.choices[0].message.content
+    # Create a placeholder for the prominent spinner
+    spinner_placeholder = st.empty()
+    spinner_placeholder.markdown("<h1 style='text-align: center; font-size: 150px;'>🔄</h1>", unsafe_allow_html=True)
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-nano-2025-04-14",
+            messages=messages
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        # Error messages are about critical failure, not just "loading", so keeping this for user awareness
+        #st.error(f"Error generating AI response: {e}")
+        return "An error occurred while generating the response."
+    finally:
+        # Clear the spinner placeholder after the operation is done (success or failure)
+        spinner_placeholder.empty()
 
 task_descriptions = [
     "Task 1...",
@@ -197,9 +223,9 @@ st.title("LLM Study Chatbot")
 
 # Display the landing page if show_landing_page is True
 if st.session_state.show_landing_page:
-    st.write("This is a chatbot designed for a study on large language models (LLMs). Please use the chatbot to execute the task shown in the chatbot interface. The task is to request help from the chatbot to write a specific communication. You may interact with the chatbot until you are satisfied with the proposed draft.")
-    st.write("Take the survey once you have executed the task. The survey can be accessed via the link shown after clicking on the button 'Take Survey'. There is no need to save task results.")
-    st.write("To close this window and access the chatbot interface, please double-click on 'X'.")
+    st.write("This is a chatbot designed for a study on large language models (LLMs). Please ask the chatbot for support to execute the tasks shown in the chatbot interface. You will get in total five tasks. Each will be shown consecutively after completing one task and manually going over to the next one. When working on a task, you may interact with the chatbot until you are satisfied with the response. Once you consider a task to be completed, click on 'Go to next task' to proceed. There is no need to save task results.")
+    st.write("After completing the last task, please take the survey. The survey can be accessed at task five via the link shown after clicking on the button 'Take Survey'.")
+    st.write("To close this window and access the chatbot interface, please click on 'X'.")
 
     if st.button("X"):
         st.session_state.show_landing_page = False
