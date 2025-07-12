@@ -115,7 +115,7 @@ def load_assignments(filename):
     # 1. Try to download from Google Drive first
     try:
         if download_from_gdrive(gdrive_file_name, local_path):
-            st.info(f"Loaded assignments from Google Drive: {gdrive_file_name}")
+            #st.info(f"Loaded assignments from Google Drive: {gdrive_file_name}")
             return pd.read_csv(local_path)
     except Exception as e:
         # Catch any error during GDrive download (e.g., network, permissions, file not found initially)
@@ -123,7 +123,7 @@ def load_assignments(filename):
 
     # 2. Fallback to local file if GDrive download failed or file not found on Drive
     if local_path.exists():
-        st.info(f"Loaded assignments from local file: {local_path.name}")
+        #st.info(f"Loaded assignments from local file: {local_path.name}")
         return pd.read_csv(local_path)
 
     # 3. If neither exists, create an empty DataFrame
@@ -142,7 +142,7 @@ def save_assignments(df, filename):
     try:
         # Use the common upload_to_gdrive function
         upload_to_gdrive(local_path, gdrive_file_name)
-        st.success(f"Uploaded assignments to Google Drive: {gdrive_file_name}")
+        #st.success(f"Uploaded assignments to Google Drive: {gdrive_file_name}")
     except Exception as e:
         st.error(f"Failed to upload assignments to Google Drive: {e}")
 
@@ -203,6 +203,7 @@ if st.session_state.show_landing_page:
 
     if st.button("X"):
         st.session_state.show_landing_page = False
+        st.rerun()
 
 else:
     current_task_index = st.session_state.current_task_index
