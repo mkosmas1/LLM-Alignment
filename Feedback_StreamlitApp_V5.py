@@ -136,7 +136,7 @@ def save_assignments(df, filename):
 
     # 1. Save locally
     df.to_csv(local_path, index=False)
-    st.info(f"Saved assignments locally to: {local_path.name}")
+    #st.info(f"Saved assignments locally to: {local_path.name}")
 
     # 2. Upload to Google Drive
     try:
