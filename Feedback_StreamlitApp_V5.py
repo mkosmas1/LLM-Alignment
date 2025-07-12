@@ -150,28 +150,6 @@ def save_assignments(df, filename):
 
 assignments_df = load_assignments(ASSIGNMENTS_FILE)
 
-if "variant" not in st.session_state:
-    user_assignment = assignments_df[assignments_df["user_id"] == st.session_state.user_id]
-
-    if not user_assignment.empty:
-        st.session_state.variant = user_assignment["variant"].iloc[0]
-    else:
-        # Assign variant based on least frequent, with random tie-breaking
-        variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
-
-        # Find the minimum count among all variants
-        min_count = variant_counts.min()
-
-        # Get all variants that have this minimum count
-        least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
-
-        # Randomly choose one from the least assigned variants
-        st.session_state.variant = random.choice(least_assigned_variants)
-
-        # Add new assignment and save
-        new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
-        assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
-        save_assignments(assignments_df, ASSIGNMENTS_FILE) # This call now uses the updated save_assignments
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -241,8 +219,35 @@ else:
     #st.markdown("Interact with the chatbot to complete this task. Once you are done, click the button below to proceed.")
     #st.markdown("---") # Optional: Another separator
 
+
     prompt = st.chat_input("Your message")
     if prompt:
+        # --- NEW LOGIC: Assign variant ONLY on first prompt submission if not already assigned ---
+        if "variant" not in st.session_state:
+            # Check if this user_id already exists in the persistent assignments_df
+            user_assignment = assignments_df[assignments_df["user_id"] == st.session_state.user_id]
+
+            if not user_assignment.empty:
+                # User already assigned a variant from a previous session (from the loaded assignments_df)
+                st.session_state.variant = user_assignment["variant"].iloc[0]
+            else:
+                # This is a new user ID that has submitted its first prompt. Assign a variant.
+                variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
+                min_count = variant_counts.min()
+                least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
+                st.session_state.variant = random.choice(least_assigned_variants)
+
+                # Add this new assignment to our assignments_df and save it
+                new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
+
+                # It's crucial to update the global `assignments_df` in the current script run
+                # so subsequent checks in this session or future sessions (after reload) reflect the change.
+                assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
+                save_assignments(assignments_df, ASSIGNMENTS_FILE) # Save the updated assignments_df
+
+        # --- END NEW LOGIC ---
+
+        # Now proceed with LLM call (st.session_state.variant is now guaranteed to be set)
         response = call_llm(prompt, st.session_state.variant)
 
         # Create the log entry for the *current* interaction
@@ -279,10 +284,9 @@ else:
         if log_file.exists():
             try:
                 # Pass both the local file path and the desired file name on Google Drive
-                upload_to_gdrive(str(log_file), "chat_logs_all.xlsx") # <--- CHANGED HERE
+                upload_to_gdrive(str(log_file), "chat_logs_all.xlsx")
             except Exception as e:
                 st.error(f"Failed to upload log to Google Drive: {e}")
-
 
         # Now, trigger rerun to update the displayed chat history
         st.rerun()
