@@ -135,7 +135,7 @@ def load_assignments(filename):
 
     # 3. If neither exists, create an empty DataFrame
     # This message is about the state of the app (no file found), not a loading indicator, so it remains.
-    #st.info("No existing assignment file found (local or Drive), creating new DataFrame.")
+    st.info("No existing assignment file found (local or Drive), creating new DataFrame.")
     return pd.DataFrame(columns=["user_id", "variant"])
 
 def save_assignments(df, filename):
@@ -156,10 +156,9 @@ def save_assignments(df, filename):
         # Removed st.success message here
     except Exception as e:
         # Error messages are about failure, not just "loading", so keeping this for user awareness
-        #st.error(f"Failed to upload assignments to Google Drive: {e}")
+        st.error(f"Failed to upload assignments to Google Drive: {e}") # Corrected indentation and uncommented
     finally:
         spinner_placeholder.empty() # Clear spinner after GDrive upload attempt
-
 
 
 assignments_df = load_assignments(ASSIGNMENTS_FILE)
@@ -202,7 +201,7 @@ def call_llm(prompt, variant):
         return response.choices[0].message.content
     except Exception as e:
         # Error messages are about critical failure, not just "loading", so keeping this for user awareness
-        #st.error(f"Error generating AI response: {e}")
+        st.error(f"Error generating AI response: {e}") # Corrected indentation and uncommented
         return "An error occurred while generating the response."
     finally:
         # Clear the spinner placeholder after the operation is done (success or failure)
@@ -333,5 +332,4 @@ else:
             survey_url = f"{SURVEY_BASE_URL}?App_Variant={st.session_state.variant}&User_ID={st.session_state.user_id}"
             st.success("Thank you! Please take the short survey below:")
             st.markdown(f"[Go to Survey]({survey_url})", unsafe_allow_html=True)
-
 
