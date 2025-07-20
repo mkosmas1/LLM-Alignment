@@ -16,7 +16,7 @@ import os
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapient.http import MediaIoBaseUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # --- Function definition for Google Drive upload ---
 # This is largely your existing function, ensuring it takes file_path and file_name_on_drive
 def upload_to_gdrive(file_path, file_name_on_drive):
