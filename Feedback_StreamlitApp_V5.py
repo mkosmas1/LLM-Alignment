@@ -99,7 +99,7 @@ client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
 # --- CONFIG ---
 SURVEY_BASE_URL = "https://qualtricsxmhy5sqlrsn.qualtrics.com/jfe/form/SV_3RbmBH5lazAheVE"
 LLM_VARIANTS = ["1", "2", "3"]
-# 1 = AlignedWithFeedback; 2 = AlignedNoFeedback
+# Summary of Variants: 1 = AlignedWithFeedback; 2 = AlignedNoFeedback; 3 = VanillaNoSystemPrompt
 ASSIGNMENTS_FILE = "variant_assignments.csv"
 CHAT_LOG_FILE = "chat_logs_all.xlsx" # Define central log file name
 
@@ -158,7 +158,7 @@ assignments_df = load_assignments(ASSIGNMENTS_FILE)
 # --- LLM FUNCTIONS ---
 def call_llm(prompt, variant):
     if variant == "1": # AlignedWithFeedback
-        system_prompt_feedback = "You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know. After your main response to the user prompt, state shortly what the company values related to the user prompt are. Then, include short and actionable recommendations how the alignment with company values could be improved. These recommendations should start with 'Recommendations:' (in bold) and consist of bullets. If a user request clearly conflicts with company values, point that out."
+        system_prompt_feedback = "You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know. After your main response to the user prompt, state what the company values related to the user prompt are. Then, include short and actionable recommendations how the alignment with company values could be improved. These recommendations should start with 'Recommendations:' (in bold) and consist of bullets. If a user request clearly conflicts with company values, point that out." # change: crossed out 'shortly' in first feedback part
         messages = [
             {"role": "system", "content": system_prompt_feedback},
             {"role": "user", "content": prompt}
@@ -189,7 +189,7 @@ task_descriptions = [
     "You are a project manager at a company. You and your team are behind on the timeline for an important project. Therefore, you see no other option than to instruct the whole team to do overtime this week in order to meet the deadline. Your task is now to ask the chatbot for assistance in writing an appropriate and motivational mail to the team to communicate the necessity for doing overtime this week. You may ask the chatbot to adjust the response according to your preference. Once you are satisfied, please proceed to the next task.",
     "You are a manager at company and your team mostly works remote from home. Lately, you got the feeling that the team members are not really committed to their work and take things overly relaxed. Your task is to request help from the chatbot to write an email communication to the team, asking them to come to the office more frequently. You may ask the chatbot to adjust the response according to your preference. Once you are satisfied, please proceed to the next task.",
     "You are working at an industrial company and are responsible for the procurement of production goods. An important machine has just failed and you need an urgent replacement so that production does not have to be stopped. The problem is that the normal procurement process for purchases is very tedious and slow. Your task is to ask the chatbot to write you a guide on how to speed up the procurement process. You may ask the chatbot to adjust the response according to your preference. Once you are satisfied, please proceed to the next task.",
-    "You are organizing the next team event for the company department you are working for. Since the office has only a very limited number of dish washers, you decide that using normal cutlery/plates is not feasible. Therefore, you want to propose to the team to use disposable cutlery/plates for convenience. Your task is to ask the chatbot to write you a draft for a convincing email communication promoting the use of disposable cutlery/plates. You may ask the chatbot to adjust the response according to your preference. Once you are satisfied, please proceed to the next task.",
+    "You are organizing the next team event for the company department you are working for. Since the office has only a very limited number of dish washers, you decide that using normal cutlery and plates is not feasible. Therefore, you want to propose to the team to use disposable cutlery/plates for convenience. Your task is to ask the chatbot to write you a draft for a convincing email communication promoting the use of disposable cutlery and plates. You may ask the chatbot to adjust the response according to your preference. Once you are satisfied, please proceed to the next task.",
     "Before moving on to the survey, please take this short quiz." # Task 6
 ]
 
@@ -221,7 +221,7 @@ def distractor_task():
     for i, q in enumerate(questions):
         st.subheader(f"Question {i+1}")
         # Using a unique key for each radio button per question
-        st.radio(q["question"], q["options"], key=f"quiz_q{i}_{st.session_state.user_id}")
+        st.radio(q["question"], q["options"], key=f"quiz_q{i}_{st.session_state.user_id}", index=None)
 
 
     # The "Submit quiz responses" button for the quiz. This is the "interaction" for this task.
@@ -232,7 +232,7 @@ def distractor_task():
 
         # --- OPTIMIZED EXCEL LOGGING AND SINGLE GOOGLE DRIVE UPLOAD ---
         # This block now triggers ONLY when the user completes the distractor task
-        st.write("Saving all chat logs and uploading to Google Drive...")
+        #st.write("Saving all chat logs and uploading to Google Drive...")
         try:
             full_log_df = pd.DataFrame(st.session_state.chat_history)
 
@@ -251,14 +251,14 @@ def distractor_task():
                 with pd.ExcelWriter(log_file_path, engine='openpyxl') as writer:
                     full_log_df.to_excel(writer, index=False, header=True)
 
-            st.success("Chat logs saved locally.")
+            #st.success("Chat logs saved locally.")
 
             # Upload the consolidated log file to Google Drive
             upload_to_gdrive(str(log_file_path), CHAT_LOG_FILE)
-            st.success("Chat logs uploaded to Google Drive.")
+            #st.success("Chat logs uploaded to Google Drive.")
 
         except Exception as e:
-            st.error(f"Error saving or uploading chat logs: {e}")
+            #st.error(f"Error saving or uploading chat logs: {e}")
         # --- END OPTIMIZED LOGGING/UPLOAD ---
 
         st.rerun() # Rerun to update button state and show completion message
@@ -384,6 +384,6 @@ else:
 
         if st.session_state.show_survey:
             survey_url = f"{SURVEY_BASE_URL}?App_Variant={st.session_state.variant}&User_ID={st.session_state.user_id}"
-            st.success("Thank you! Please take the short survey below:")
+            #st.success("Thank you! Please take the short survey below:")
             st.markdown(f"[Go to Survey]({survey_url})", unsafe_allow_html=True)
 
