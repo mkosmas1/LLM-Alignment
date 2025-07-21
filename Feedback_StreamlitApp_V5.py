@@ -257,7 +257,7 @@ def distractor_task():
             upload_to_gdrive(str(log_file_path), CHAT_LOG_FILE)
             #st.success("Chat logs uploaded to Google Drive.")
 
-        except Exception as e:
+        #except Exception as e:
             #st.error(f"Error saving or uploading chat logs: {e}")
         # --- END OPTIMIZED LOGGING/UPLOAD ---
 
