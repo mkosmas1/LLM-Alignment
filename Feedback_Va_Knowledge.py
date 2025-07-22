@@ -283,9 +283,21 @@ st.title("LLM Study Chatbot")
 
 st.markdown("""
 <style>
-/* Target the outermost div.stButton and force bold font-weight for its contents */
-div.stButton {
-    font-weight: bold !important; /* Force bold font-weight on the outer div */
+/* Target the immediate children of the stButtonContent data-testid and force bold */
+[data-testid="stButtonContent"] > span,
+[data-testid="stButtonContent"] > p {
+    font-weight: bold !important;
+}
+
+/* Also ensure the button itself and its direct child div are bold, to cover inheritance */
+div.stButton > button,
+div.stButton > button > div {
+    font-weight: bold !important;
+}
+
+/* And finally, apply to any text within the main stButton div as a last resort */
+div.stButton * { /* This targets ALL descendants of div.stButton */
+    font-weight: bold !important;
 }
 </style>
 """, unsafe_allow_html=True)
