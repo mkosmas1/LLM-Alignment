@@ -284,18 +284,19 @@ st.title("LLM Study Chatbot")
 # Custom CSS for *only* the "X" button
 st.markdown("""
 <style>
-/* Target the button specifically within the #landing_page_x_button_container */
-#landing_page_x_button_container button[data-testid="stButton"] {
-    background-color: #FF4B4B; /* Red color */
-    color: white; /* Text color */
-    font-weight: bold;
-    border-radius: 5px; /* Slightly rounded corners */
-    padding: 10px 15px; /* Adjust padding as needed */
-    border: none; /* Remove default border */
+/* Target the first Streamlit button's internal button element */
+/* This is highly specific and should override most default styles */
+div.stButton:first-of-type > button {
+    background-color: #FF4B4B !important; /* Red color, with !important */
+    color: white !important; /* Text color, with !important */
+    font-weight: bold !important;
+    border-radius: 5px !important;
+    padding: 10px 15px !important;
+    border: none !important; /* Remove default border */
 }
 
-#landing_page_x_button_container button[data-testid="stButton"]:hover {
-    background-color: #CC0000; /* Darker red on hover */
+div.stButton:first-of-type > button:hover {
+    background-color: #CC0000 !important; /* Darker red on hover */
 }
 </style>
 """, unsafe_allow_html=True)
@@ -307,11 +308,11 @@ if st.session_state.show_landing_page:
     st.write("After completing the last task, please take the survey. The survey can be accessed at task five via the link shown after clicking on the button 'Take Survey'.")
     st.write("To close this window and access the chatbot interface, please click on 'X'.")
 
-    st.markdown('<div id="landing_page_x_button_container">', unsafe_allow_html=True)
+
     if st.button("X"):
         st.session_state.show_landing_page = False
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+
 
 else:
     current_task_index = st.session_state.current_task_index
