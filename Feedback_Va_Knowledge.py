@@ -283,9 +283,9 @@ st.title("LLM Study Chatbot")
 
 st.markdown("""
 <style>
-/* Target the actual button element within any Streamlit button div */
-div.stButton > button {
-    font-weight: bold !important; /* Force bold font-weight on the button itself */
+/* Target the outermost div.stButton and force bold font-weight for its contents */
+div.stButton {
+    font-weight: bold !important; /* Force bold font-weight on the outer div */
 }
 </style>
 """, unsafe_allow_html=True)
