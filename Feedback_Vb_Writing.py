@@ -97,7 +97,7 @@ def download_from_gdrive(file_name_on_drive, local_file_path):
 client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
 
 # --- CONFIG ---
-SURVEY_BASE_URL = "https://qualtricsxmhy5sqlrsn.qualtrics.com/jfe/form/SV_3RbmBH5lazAheVE"
+SURVEY_BASE_URL = "https://lmubwl.eu.qualtrics.com/jfe/form/SV_07zg1MdRjuQMs7A"
 LLM_VARIANTS = ["1", "2", "3"]
 # Summary of Variants: 1 = AlignedWithFeedback; 2 = AlignedNoFeedback; 3 = VanillaNoSystemPrompt
 ASSIGNMENTS_FILE = "Variant_Assignment_Vb_Writing.csv"
