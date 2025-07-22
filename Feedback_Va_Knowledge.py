@@ -284,11 +284,8 @@ st.title("LLM Study Chatbot")
 # Custom CSS for *only* the "X" button within its specific container
 st.markdown("""
 <style>
-/* Target the stButton div that is directly inside the specific container (by data-testid) */
-/* The key for st.container is not directly used in CSS, but the generated data-testid for the container */
-/* We'll use a general targeting for the *first* stButton within *any* stContainer for max specificity */
-
-div[data-testid^="stVerticalBlock"]:first-of-type div.stButton > button {
+/* Target the stButton div that is directly inside the specific ID'd div */
+#x_button_wrapper div.stButton > button {
     background-color: #FF4B4B !important; /* Red color, with !important */
     color: white !important; /* Text color, with !important */
     font-weight: bold !important;
@@ -297,7 +294,7 @@ div[data-testid^="stVerticalBlock"]:first-of-type div.stButton > button {
     border: none !important; /* Remove default border */
 }
 
-div[data-testid^="stVerticalBlock"]:first-of-type div.stButton > button:hover {
+#x_button_wrapper div.stButton > button:hover {
     background-color: #CC0000 !important; /* Darker red on hover */
 }
 </style>
@@ -310,10 +307,13 @@ if st.session_state.show_landing_page:
     st.write("After completing the last task, please take the survey. The survey can be accessed at task five via the link shown after clicking on the button 'Take Survey'.")
     st.write("To close this window and access the chatbot interface, please click on 'X'.")
 
-    with st.container(key="landing_page_x_button_container"):
-        if st.button("X"):
-            st.session_state.show_landing_page = False
-            st.rerun()
+    # Wrap the button in a div with a unique, static ID.
+    # This ID will allow us to target it precisely with CSS.
+    st.markdown('<div id="x_button_wrapper">', unsafe_allow_html=True)
+    if st.button("X"):
+        st.session_state.show_landing_page = False
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True) # Close the custom div
 
     #if st.button("X"):
         #st.session_state.show_landing_page = False
