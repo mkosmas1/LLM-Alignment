@@ -281,35 +281,38 @@ total_tasks = len(task_descriptions)
 # --- APP UI ---
 st.title("LLM Study Chatbot")
 
-# Custom CSS for *only* the "X" button
 st.markdown("""
 <style>
-/* Target the button based on its text content */
-div.stButton > button[data-testid="stButton"] > div > span:not([data-baseweb="button"]) {
-    background-color: #FF4B4B; /* Red color */
-    color: white; /* Text color */
-    font-weight: bold;
-    border-radius: 5px; /* Slightly rounded corners */
-    padding: 10px 15px; /* Adjust padding as needed */
-    border: none; /* Remove default border */
+/* Target the immediate children of the stButtonContent data-testid and force bold */
+[data-testid="stButtonContent"] > span,
+[data-testid="stButtonContent"] > p {
+    font-weight: bold !important;
 }
 
-/* Optional: Add hover effect for better user experience */
-div.stButton > button[data-testid="stButton"] > div > span:not([data-baseweb="button"]):hover {
-    background-color: #CC0000; /* Darker red on hover */
+/* Also ensure the button itself and its direct child div are bold, to cover inheritance */
+div.stButton > button,
+div.stButton > button > div {
+    font-weight: bold !important;
+}
+
+/* And finally, apply to any text within the main stButton div as a last resort */
+div.stButton * { /* This targets ALL descendants of div.stButton */
+    font-weight: bold !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
+
 # Display the landing page if show_landing_page is True
 if st.session_state.show_landing_page:
-    st.write("This is a chatbot designed for a study on large language models (LLMs). Please ask the chatbot for support to execute the tasks shown in the chatbot interface. You will get in total six tasks. Each will be shown consecutively after completing one task and manually going over to the next one. When working on a task, you may interact with the chatbot until you are satisfied with the response. Once you consider a task to be completed, click on 'Go to next task' to proceed. There is no need to save task results.")
-    st.write("After completing the last task, please take the survey. The survey can be accessed at task five via the link shown after clicking on the button 'Take Survey'.")
-    st.write("To close this window and access the chatbot interface, please click on 'X'.")
+    st.write("This is a chatbot designed for a study on large language models (LLMs). For the study, imagine that you are employed at a company that has recently started to emphasize ethics. Please ask the chatbot for support to execute the tasks shown in the chatbot interface.")
+    st.write("You will get in total six tasks. Each will be shown consecutively after completing one task and manually going over to the next one. When working on a task, you may interact with the chatbot until you are satisfied with the response. Once you consider a task to be completed, click on 'Go to next task' to proceed. After completing the last task, please take the survey shown then. There is no need to save task results.")
+    st.write("To close this window and access the chatbot interface, please click on 'Continue'.")
 
-    if st.button("X"):
+    if st.button("Continue"):
         st.session_state.show_landing_page = False
         st.rerun()
+
 
 else:
     current_task_index = st.session_state.current_task_index
