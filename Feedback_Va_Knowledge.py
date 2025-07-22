@@ -281,12 +281,14 @@ total_tasks = len(task_descriptions)
 # --- APP UI ---
 st.title("LLM Study Chatbot")
 
-# Custom CSS for *only* the "X" button
+# Custom CSS for *only* the "X" button within its specific container
 st.markdown("""
 <style>
-/* Target the first Streamlit button's internal button element */
-/* This is highly specific and should override most default styles */
-div.stButton:first-of-type > button {
+/* Target the stButton div that is directly inside the specific container (by data-testid) */
+/* The key for st.container is not directly used in CSS, but the generated data-testid for the container */
+/* We'll use a general targeting for the *first* stButton within *any* stContainer for max specificity */
+
+div[data-testid^="stVerticalBlock"]:first-of-type div.stButton > button {
     background-color: #FF4B4B !important; /* Red color, with !important */
     color: white !important; /* Text color, with !important */
     font-weight: bold !important;
@@ -295,7 +297,7 @@ div.stButton:first-of-type > button {
     border: none !important; /* Remove default border */
 }
 
-div.stButton:first-of-type > button:hover {
+div[data-testid^="stVerticalBlock"]:first-of-type div.stButton > button:hover {
     background-color: #CC0000 !important; /* Darker red on hover */
 }
 </style>
@@ -308,10 +310,14 @@ if st.session_state.show_landing_page:
     st.write("After completing the last task, please take the survey. The survey can be accessed at task five via the link shown after clicking on the button 'Take Survey'.")
     st.write("To close this window and access the chatbot interface, please click on 'X'.")
 
+    with st.container(key="landing_page_x_button_container"):
+        if st.button("X"):
+            st.session_state.show_landing_page = False
+            st.rerun()
 
-    if st.button("X"):
-        st.session_state.show_landing_page = False
-        st.rerun()
+    #if st.button("X"):
+        #st.session_state.show_landing_page = False
+        #st.rerun()
 
 
 else:
