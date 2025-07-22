@@ -281,21 +281,11 @@ total_tasks = len(task_descriptions)
 # --- APP UI ---
 st.title("LLM Study Chatbot")
 
-# Custom CSS for *only* the "X" button within its specific container
 st.markdown("""
 <style>
-/* Target the stButton div that is directly inside the specific ID'd div */
-#x_button_wrapper div.stButton > button {
-    background-color: #FF4B4B !important; /* Red color, with !important */
-    color: white !important; /* Text color, with !important */
-    font-weight: bold !important;
-    border-radius: 5px !important;
-    padding: 10px 15px !important;
-    border: none !important; /* Remove default border */
-}
-
-#x_button_wrapper div.stButton > button:hover {
-    background-color: #CC0000 !important; /* Darker red on hover */
+/* Target the span element inside any Streamlit button */
+div.stButton > button > div > span {
+    font-weight: bold;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -307,17 +297,9 @@ if st.session_state.show_landing_page:
     st.write("After completing the last task, please take the survey. The survey can be accessed at task five via the link shown after clicking on the button 'Take Survey'.")
     st.write("To close this window and access the chatbot interface, please click on 'X'.")
 
-    # Wrap the button in a div with a unique, static ID.
-    # This ID will allow us to target it precisely with CSS.
-    st.markdown('<div id="x_button_wrapper">', unsafe_allow_html=True)
-    if st.button("X"):
+    if st.button("Close"):
         st.session_state.show_landing_page = False
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True) # Close the custom div
-
-    #if st.button("X"):
-        #st.session_state.show_landing_page = False
-        #st.rerun()
 
 
 else:
