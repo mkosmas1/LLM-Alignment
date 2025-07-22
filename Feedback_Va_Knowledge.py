@@ -305,8 +305,8 @@ div.stButton * { /* This targets ALL descendants of div.stButton */
 
 # Display the landing page if show_landing_page is True
 if st.session_state.show_landing_page:
-    st.write("This is a chatbot designed for a study on large language models (LLMs). Please ask the chatbot for support to execute the tasks shown in the chatbot interface. You will get in total six tasks. Each will be shown consecutively after completing one task and manually going over to the next one. When working on a task, you may interact with the chatbot until you are satisfied with the response. Once you consider a task to be completed, click on 'Go to next task' to proceed. There is no need to save task results.")
-    st.write("After completing the last task, please take the survey. The survey can be accessed at task five via the link shown after clicking on the button 'Take Survey'.")
+    st.write("This is a chatbot designed for a study on large language models (LLMs). For the study, imagine that you are employed at a company that has recently started to emphasize ethics. Please ask the chatbot for support to execute the tasks shown in the chatbot interface.")
+    st.write("You will get in total six tasks. Each will be shown consecutively after completing one task and manually going over to the next one. When working on a task, you may interact with the chatbot until you are satisfied with the response. Once you consider a task to be completed, click on 'Go to next task' to proceed. After completing the last task, please take the survey shown then. There is no need to save task results.")
     st.write("To close this window and access the chatbot interface, please click on 'Continue'.")
 
     if st.button("Continue"):
