@@ -17,7 +17,7 @@ import time
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+from googleapiciplient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
 # --- Function definition for Google Drive upload ---
 def upload_to_gdrive(file_path, file_name_on_drive):
@@ -122,6 +122,7 @@ if "distractor_complete" not in st.session_state:
 
 # --- VARIANT ASSIGNMENT FUNCTIONS ---
 # This function loads the data from Google Drive.
+# We'll use this function directly within the assignment logic now.
 def load_assignments_data_from_gdrive(filename):
     gdrive_file_name = Path(filename).name
     try:
@@ -138,9 +139,11 @@ def load_assignments_data_from_gdrive(filename):
         st.error(f"Failed to load assignments from Google Drive: {e}. Returning empty DataFrame.")
         return pd.DataFrame(columns=["user_id", "variant"])
 
-# Initialize assignments_df_global in session state ONLY ONCE per session
-if "assignments_df_global" not in st.session_state:
-    st.session_state.assignments_df_global = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
+# Removed the top-level `if "assignments_df_global" not in st.session_state:`
+# and its call to `load_assignments_data_from_gdrive`.
+# This is because it seems to be ineffective in ensuring the state inside `if prompt:`.
+# We will now explicitly load the assignments when needed for assignment logic.
+
 
 # --- Save assignments ---
 def save_assignments(df, filename):
@@ -316,27 +319,25 @@ else:
         if prompt:
             # --- Variant Assignment Logic ---
             if "variant" not in st.session_state:
-                # IMPORTANT DEBUGGING ADDITION: Re-check/reload assignments_df_global here
-                # This is a very aggressive attempt to ensure the data is fresh.
-                if st.session_state.assignments_df_global is None or st.session_state.assignments_df_global.empty:
-                    st.write("DEBUG: assignments_df_global found empty or None during prompt submission. Attempting re-load.")
-                    st.session_state.assignments_df_global = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
+                st.write("DEBUG: User has no variant assigned. Beginning assignment process.")
 
-                # Now use the potentially reloaded or existing current_assignments_df
-                current_assignments_df = st.session_state.assignments_df_global
+                # Force re-load the assignments DataFrame directly from GDrive
+                # this time, instead of relying on st.session_state to be perfectly consistent.
+                # This ensures we get the latest cumulative data right at the point of assignment.
+                assignments_df_from_gdrive = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
 
-                user_assignment = current_assignments_df[
-                    current_assignments_df["user_id"] == st.session_state.user_id
+                user_assignment = assignments_df_from_gdrive[
+                    assignments_df_from_gdrive["user_id"] == st.session_state.user_id
                 ]
 
                 if not user_assignment.empty:
                     st.session_state.variant = user_assignment["variant"].iloc[0]
-                    st.write(f"DEBUG: Existing user {st.session_state.user_id} detected. Assigned variant: {st.session_state.variant}")
+                    st.write(f"DEBUG: Existing user {st.session_state.user_id} detected from GDrive. Assigned variant: {st.session_state.variant}")
                 else:
-                    st.write(f"DEBUG: New user {st.session_state.user_id} detected.")
+                    st.write(f"DEBUG: New user {st.session_state.user_id} detected. Calculating new variant.")
 
-                    # Calculate variant counts from the current_assignments_df
-                    variant_counts = current_assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
+                    # Calculate variant counts from the freshly loaded DataFrame
+                    variant_counts = assignments_df_from_gdrive["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
                     st.write(f"DEBUG: Current variant counts: {variant_counts.to_dict()}")
                     min_count = variant_counts.min()
                     least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
@@ -345,11 +346,11 @@ else:
 
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
 
-                    # Update the DataFrame stored in session_state
-                    st.session_state.assignments_df_global = pd.concat([current_assignments_df, new_assignment], ignore_index=True)
+                    # Update the DataFrame by concatenating the new assignment to the freshly loaded data
+                    updated_assignments_df = pd.concat([assignments_df_from_gdrive, new_assignment], ignore_index=True)
 
-                    # Save the updated DataFrame (from session_state) to Google Drive
-                    save_assignments(st.session_state.assignments_df_global, ASSIGNMENTS_FILE)
+                    # Save the updated DataFrame (which now includes all previous assignments + new one) to Google Drive
+                    save_assignments(updated_assignments_df, ASSIGNMENTS_FILE)
                     st.write(f"DEBUG: Assigned new variant: {st.session_state.variant}")
 
             # Display user message immediately
@@ -374,7 +375,7 @@ else:
             st.session_state.prompt_submitted_for_task[current_task_index] = True
 
     disable_next_button = True
-    if current_task_index == len(task_descriptions) - 1:
+    if current_task_index == total_tasks - 1:
         disable_next_button = not st.session_state.get("distractor_complete", False)
     else:
         disable_next_button = not st.session_state.prompt_submitted_for_task.get(current_task_index, False)
