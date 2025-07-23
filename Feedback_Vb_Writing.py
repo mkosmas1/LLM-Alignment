@@ -17,7 +17,7 @@ import time
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiciplient.http import MediaIoBaseUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
 # --- Function definition for Google Drive upload ---
 def upload_to_gdrive(file_path, file_name_on_drive):
