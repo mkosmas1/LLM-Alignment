@@ -10,7 +10,7 @@ import random
 import openai
 from datetime import datetime
 import pandas as pd
-from io import BytesIO # Important: Use BytesIO for in-memory file handling
+from io import BytesIO
 from pathlib import Path
 import os
 import time
@@ -46,7 +46,7 @@ def upload_to_gdrive(file_path, file_name_on_drive):
             media_body=media,
             supportsAllDrives=True
         ).execute()
-        # st.success(f"Updated '{file_name_on_drive}' on Google Drive.") # For debugging
+        # st.success(f"Updated '{file_name_on_drive}' on Google Drive.")
     else:
         file_metadata = {
             "name": file_name_on_drive,
@@ -59,7 +59,7 @@ def upload_to_gdrive(file_path, file_name_on_drive):
             fields="id",
             supportsAllDrives=True
         ).execute()
-        # st.success(f"Uploaded '{file_name_on_drive}' to Google Drive.") # For debugging
+        # st.success(f"Uploaded '{file_name_on_drive}' to Google Drive.")
 
 # --- Function definition for Google Drive download (returns content as bytes) ---
 def download_from_gdrive_to_memory(file_name_on_drive):
@@ -79,18 +79,18 @@ def download_from_gdrive_to_memory(file_name_on_drive):
         file_id = items[0]['id']
         request = service.files().get_media(fileId=file_id)
 
-        file_content_buffer = BytesIO() # Use BytesIO to store content in memory
+        file_content_buffer = BytesIO()
         downloader = MediaIoBaseDownload(file_content_buffer, request)
         done = False
         while done is False:
             status, done = downloader.next_chunk()
 
-        file_content_buffer.seek(0) # Rewind the buffer to the beginning
+        file_content_buffer.seek(0)
         st.write(f"DEBUG: Successfully downloaded '{file_name_on_drive}' from GDrive. Content size: {len(file_content_buffer.getvalue())} bytes.")
-        return file_content_buffer.getvalue() # Return the bytes content
+        return file_content_buffer.getvalue()
     else:
         st.write(f"DEBUG: File '{file_name_on_drive}' not found on Google Drive.")
-        return None # Indicate that the file was not found
+        return None
 
 # Set your OpenAI API key
 client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
@@ -98,9 +98,8 @@ client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
 # --- CONFIG ---
 SURVEY_BASE_URL = "https://lmubwl.eu.qualtrics.com/jfe/form/SV_07zg1MdRjuQMs7A"
 LLM_VARIANTS = ["1", "2", "3"]
-# Summary of Variants: 1 = AlignedWithFeedback; 2 = AlignedNoFeedback; 3 = VanillaNoSystemPrompt
 ASSIGNMENTS_FILE = "Variant_Assignment_Vb_Writing.csv"
-CHAT_LOG_FILE = "Chat_Logs_Vb_Writing.xlsx" # Define central log file name
+CHAT_LOG_FILE = "Chat_Logs_Vb_Writing.xlsx"
 
 # --- SETUP SESSION STATE ---
 if "user_id" not in st.session_state:
@@ -110,7 +109,7 @@ if "current_task_index" not in st.session_state:
     st.session_state.current_task_index = 0
 
 if "chat_history" not in st.session_state:
-    st.session_state.chat_history = [] # Stores ALL chat interactions for the current user across tasks
+    st.session_state.chat_history = []
 
 if "show_survey" not in st.session_state:
     st.session_state.show_survey = False
@@ -119,10 +118,11 @@ if "show_landing_page" not in st.session_state:
     st.session_state.show_landing_page = True
 
 if "distractor_complete" not in st.session_state:
-    st.session_state.distractor_complete = False # Track completion of the distractor task
+    st.session_state.distractor_complete = False
 
-# --- VARIANT ASSIGNMENT (MODIFIED load_assignments and session_state storage) ---
-def load_assignments_data(filename): # Renamed to avoid confusion with the global variable
+# --- VARIANT ASSIGNMENT FUNCTIONS ---
+# This function loads the data from Google Drive.
+def load_assignments_data_from_gdrive(filename):
     gdrive_file_name = Path(filename).name
     try:
         file_bytes = download_from_gdrive_to_memory(gdrive_file_name)
@@ -132,21 +132,20 @@ def load_assignments_data(filename): # Renamed to avoid confusion with the globa
             st.write(f"DEBUG: Loaded assignments head:\n{df.head()}")
             return df
         else:
-            st.warning(f"No content downloaded for '{gdrive_file_name}' from Google Drive. Creating new DataFrame.")
+            st.warning(f"No content downloaded for '{gdrive_file_name}' from Google Drive. Returning empty DataFrame.")
             return pd.DataFrame(columns=["user_id", "variant"])
     except Exception as e:
-        st.error(f"Failed to load assignments from Google Drive: {e}. Creating new DataFrame.")
+        st.error(f"Failed to load assignments from Google Drive: {e}. Returning empty DataFrame.")
         return pd.DataFrame(columns=["user_id", "variant"])
 
-# Initialize assignments_df in session state if it's not already there for this session
+# Initialize assignments_df_global in session state ONLY ONCE per session
 if "assignments_df_global" not in st.session_state:
-    st.session_state.assignments_df_global = load_assignments_data(ASSIGNMENTS_FILE)
+    st.session_state.assignments_df_global = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
 
-# --- MODIFIED save_assignments (No functional change, just included for context) ---
+# --- Save assignments ---
 def save_assignments(df, filename):
     local_path = Path(filename)
     gdrive_file_name = local_path.name
-
     df.to_csv(local_path, index=False)
     st.write(f"DEBUG: Local file '{local_path}' saved with shape: {df.shape}")
     try:
@@ -158,7 +157,7 @@ def save_assignments(df, filename):
 # --- LLM FUNCTIONS ---
 def call_llm(prompt, variant):
     if variant == "1": # AlignedWithFeedback
-        system_prompt_feedback = "You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know. After your main response to the user prompt, state what the company values related to this topic are. Then, include short and actionable recommendations how the alignment with company values could be improved. These recommendations should start with 'Recommendations:' (in bold) and consist of bullets. If a user request clearly conflicts with company values, point that out." # change: crossed out 'shortly' in first feedback part
+        system_prompt_feedback = "You are an AI assistant representing a company. Your responses must align with the company’s values. You should incorporate the following topics and behaviors. Ethical behavior and professional integrity: Act with integrity in all interactions. Ensure honest, ethical responses, reflecting transparency. Avoid any appearance of impropriety and ensure that your actions build trust.\nTransparency: Provide clear, truthful, and well-reasoned answers. Acknowledge concerns and address inconsistencies constructively. Compliance with laws and regulations: Strictly adhere to company policies, legal guidelines, and ethical considerations. This includes, but is not limited to, competition law, anti-corruption regulations, data privacy laws, human rights and environmental protection standards. Conflict of interest policies: Avoid situations that could lead to conflicts of interest. Disclose and transparently document any potential conflicts. Confidentiality and data protection: Protect confidential information, know-how, and business secrets. Handle personal data of customers, associates, and partners with the utmost care and in compliance with data privacy regulations. Workplace safety and respect: Prioritize the health and safety of all individuals. Foster a work environment characterized by mutual respect, appreciation, openness, and fairness. Commitment to diversity and inclusion: Use neutral, respectful, and diverse language. Embrace diversity in all its forms. Ensure equal opportunities and do not tolerate discrimination or harassment based on ethnicity, skin color, nationality, gender, religion, disability, age, sexual orientation, or any other legally protected characteristic. Innovation and continuous improvement: Be open to change and actively seek new opportunities for innovation and improvement. Collaboration and teamwork: Foster a spirit of collaboration and teamwork, recognizing that collective effort drives success. Support clear feedback, celebrate success, respect and appreciation towards others. Sustainability: Act responsibly towards the environment and society. Promote sustainable and climate-friendly practices in all business activities from ecology and economy to social commitment. Responsibility and trust: Foster a culture that supports trusting each other as well as taking responsibility and accountability for decision. If a query conflicts with corporate values, legal obligations or ethical considerations, politely refuse the request. If you are unsure, state that you do not know. After your main response to the user prompt, state what the company values related to this topic are. Then, include short and actionable recommendations how the alignment with company values could be improved. These recommendations should start with 'Recommendations:' (in bold) and consist of bullets. If a user request clearly conflicts with company values, point that out."
         messages = [
             {"role": "system", "content": system_prompt_feedback},
             {"role": "user", "content": prompt}
@@ -179,9 +178,6 @@ def call_llm(prompt, variant):
         messages=messages
     )
     return response.choices[0].message.content
-
-# Summary of Variants: 1 = AlignedWithFeedback; 2 = AlignedNoFeedback; 3 = VanillaNoSystemPrompt
-
 
 # --- Task Definitions ---
 task_descriptions = [
@@ -224,28 +220,20 @@ def distractor_task():
         st.radio(q["question"], q["options"], key=f"quiz_q{i}_{st.session_state.user_id}", index=None)
 
 
-    # The "Submit quiz responses" button for the quiz. This is the "interaction" for this task.
     if st.button("Submit quiz responses"):
         st.session_state.distractor_complete = True
-        # Mark that an interaction happened for the distractor task
         st.session_state.prompt_submitted_for_task[st.session_state.current_task_index] = True
 
-        # --- OPTIMIZED EXCEL LOGGING AND SINGLE GOOGLE DRIVE UPLOAD ---
         try:
             full_log_df = pd.DataFrame(st.session_state.chat_history)
-
             log_file_path = Path(CHAT_LOG_FILE)
 
-            # Check if the file exists and has content for appending, otherwise create
             if log_file_path.exists() and log_file_path.stat().st_size > 0:
-                # Append if file exists and is not empty
                 with pd.ExcelWriter(log_file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-                    existing_df = pd.read_excel(log_file_path) # Read existing to find last row
+                    existing_df = pd.read_excel(log_file_path)
                     start_row = len(existing_df) + 1
-                    # Ensure columns match, if not, consider re-creating or handling carefully
                     full_log_df.to_excel(writer, index=False, header=False, startrow=start_row)
             else:
-                # Create new file with header if it doesn't exist or is empty
                 with pd.ExcelWriter(log_file_path, engine='openpyxl') as writer:
                     full_log_df.to_excel(writer, index=False, header=True)
 
@@ -253,21 +241,19 @@ def distractor_task():
 
         except Exception as e:
             st.error(f"Error saving or uploading chat logs: {e}")
-        # --- END OPTIMIZED LOGGING/UPLOAD ---
 
-        st.rerun() # Rerun to update button state and show completion message
+        st.rerun()
 
     if st.session_state.get("distractor_complete"):
         st.success("Now, please proceed to take the survey by first clicking on 'Take Survey' and then accessing the shown link to Qualtrics.")
 
-
 task_functions = [
-    None,  # Task 1 – handled via chatbot
-    None,  # Task 2
-    None,  # Task 3
-    None,  # Task 4
-    None,  # Task 5
-    distractor_task  # Task 6 – this one runs a Streamlit form, not chatbot
+    None,
+    None,
+    None,
+    None,
+    None,
+    distractor_task
 ]
 
 total_tasks = len(task_descriptions)
@@ -290,14 +276,13 @@ div.stButton > button > div {
 }
 
 /* And finally, apply to any text within the main stButton div as a last resort */
-div.stButton * { /* This targets ALL descendants of div.stButton */
+div.stButton * {
     font-weight: bold !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-# Display the landing page if show_landing_page is True
 if st.session_state.show_landing_page:
     st.write("This is a chatbot designed for a study on large language models (LLMs). For the study, imagine that you are employed at a company that has recently started to emphasize ethics. Please ask the chatbot for support to execute the tasks shown in the chatbot interface.")
     st.write("You will get in total six tasks. Each will be shown consecutively after completing one task and manually going over to the next one. When working on a task, you may interact with the chatbot until you are satisfied with the response. Once you consider a task to be completed, click on 'Go to next task' to proceed. After completing the last task, please take the survey shown then. There is no need to save task results.")
@@ -307,7 +292,6 @@ if st.session_state.show_landing_page:
         st.session_state.show_landing_page = False
         st.rerun()
 
-
 else:
     current_task_index = st.session_state.current_task_index
     current_task_description = task_descriptions[current_task_index]
@@ -315,10 +299,9 @@ else:
 
     st.markdown(f"**Current Task {current_task_index + 1}/{total_tasks}:** {current_task_description}")
 
-    if task_func:  # If this task has a special function (like the distractor quiz)
+    if task_func:
         task_func()
     else:
-        # Display chat history for the current task only (filtered from st.session_state.chat_history)
         current_task_chats = [
             chat for chat in st.session_state.chat_history
             if chat["task_index"] == current_task_index
@@ -331,11 +314,19 @@ else:
 
         prompt = st.chat_input("Your message", key=f"chat_input_{current_task_index}")
         if prompt:
-            # --- Assign variant ONLY on first prompt submission if not already assigned ---
+            # --- Variant Assignment Logic ---
             if "variant" not in st.session_state:
-                # Always reference from session_state for the latest loaded DF
-                user_assignment = st.session_state.assignments_df_global[
-                    st.session_state.assignments_df_global["user_id"] == st.session_state.user_id
+                # IMPORTANT DEBUGGING ADDITION: Re-check/reload assignments_df_global here
+                # This is a very aggressive attempt to ensure the data is fresh.
+                if st.session_state.assignments_df_global is None or st.session_state.assignments_df_global.empty:
+                    st.write("DEBUG: assignments_df_global found empty or None during prompt submission. Attempting re-load.")
+                    st.session_state.assignments_df_global = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
+
+                # Now use the potentially reloaded or existing current_assignments_df
+                current_assignments_df = st.session_state.assignments_df_global
+
+                user_assignment = current_assignments_df[
+                    current_assignments_df["user_id"] == st.session_state.user_id
                 ]
 
                 if not user_assignment.empty:
@@ -343,8 +334,9 @@ else:
                     st.write(f"DEBUG: Existing user {st.session_state.user_id} detected. Assigned variant: {st.session_state.variant}")
                 else:
                     st.write(f"DEBUG: New user {st.session_state.user_id} detected.")
-                    # Calculate variant counts from the DataFrame in session_state
-                    variant_counts = st.session_state.assignments_df_global["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
+
+                    # Calculate variant counts from the current_assignments_df
+                    variant_counts = current_assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
                     st.write(f"DEBUG: Current variant counts: {variant_counts.to_dict()}")
                     min_count = variant_counts.min()
                     least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
@@ -354,7 +346,7 @@ else:
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
 
                     # Update the DataFrame stored in session_state
-                    st.session_state.assignments_df_global = pd.concat([st.session_state.assignments_df_global, new_assignment], ignore_index=True)
+                    st.session_state.assignments_df_global = pd.concat([current_assignments_df, new_assignment], ignore_index=True)
 
                     # Save the updated DataFrame (from session_state) to Google Drive
                     save_assignments(st.session_state.assignments_df_global, ASSIGNMENTS_FILE)
@@ -364,15 +356,12 @@ else:
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            # Show a spinner while LLM is generating response
             with st.spinner("Thinking..."):
                 response = call_llm(prompt, st.session_state.variant)
 
-            # Display assistant response
             with st.chat_message("assistant"):
                 st.markdown(response)
 
-            # Create the log entry for the current interaction
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "user_id": st.session_state.user_id,
@@ -381,26 +370,20 @@ else:
                 "prompt": prompt,
                 "response": response,
             }
-            # Add to the comprehensive chat history in session state
             st.session_state.chat_history.append(log_entry)
-
-            # Mark that a prompt has been submitted for the current task
             st.session_state.prompt_submitted_for_task[current_task_index] = True
 
-    # Determine if the "Go to next task" button should be disabled
     disable_next_button = True
-    if current_task_index == len(task_descriptions) - 1: # This is the last task (distractor quiz)
+    if current_task_index == len(task_descriptions) - 1:
         disable_next_button = not st.session_state.get("distractor_complete", False)
-    else: # This is a regular chat task
+    else:
         disable_next_button = not st.session_state.prompt_submitted_for_task.get(current_task_index, False)
 
-    # The buttons for navigation should appear after the main chat interaction area
     if current_task_index < total_tasks - 1:
         if st.button("Go to next task", disabled=disable_next_button):
             st.session_state.current_task_index += 1
             st.rerun()
     else:
-        # This block for the final "Take Survey" button (after distractor task)
         if st.button("Take Survey", disabled=disable_next_button):
             st.session_state.show_survey = True
 
