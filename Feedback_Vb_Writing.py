@@ -84,10 +84,8 @@ def download_from_gdrive_to_memory(file_name_on_drive):
             status, done = downloader.next_chunk()
 
         file_content_buffer.seek(0)
-        st.write(f"DEBUG: Successfully downloaded '{file_name_on_drive}' from GDrive. Content size: {len(file_content_buffer.getvalue())} bytes.")
         return file_content_buffer.getvalue()
     else:
-        st.write(f"DEBUG: File '{file_name_on_drive}' not found on Google Drive.")
         return None
 
 # Set your OpenAI API key
@@ -124,18 +122,13 @@ def load_assignments_data_from_gdrive(filename):
     try:
         file_bytes = download_from_gdrive_to_memory(gdrive_file_name)
         if file_bytes:
-            # IMPORTANT: Explicitly set dtype for 'variant' column here
             df = pd.read_csv(BytesIO(file_bytes), dtype={'user_id': str, 'variant': str})
-            st.write(f"DEBUG: Loaded assignments from GDrive into DataFrame. Shape: {df.shape}")
-            st.write(f"DEBUG: Loaded assignments head:\n{df.head()}")
-            st.write(f"DEBUG: Loaded assignments dtypes:\n{df.dtypes}") # New debug line
             return df
         else:
-            st.warning(f"No content downloaded for '{gdrive_file_name}' from Google Drive. Returning empty DataFrame.")
-            return pd.DataFrame(columns=["user_id", "variant"], dtype=str) # Ensure empty DF has correct dtypes
+            return pd.DataFrame(columns=["user_id", "variant"], dtype=str)
     except Exception as e:
         st.error(f"Failed to load assignments from Google Drive: {e}. Returning empty DataFrame.")
-        return pd.DataFrame(columns=["user_id", "variant"], dtype=str) # Ensure empty DF has correct dtypes
+        return pd.DataFrame(columns=["user_id", "variant"], dtype=str)
 
 
 # --- Save assignments ---
@@ -143,10 +136,8 @@ def save_assignments(df, filename):
     local_path = Path(filename)
     gdrive_file_name = local_path.name
     df.to_csv(local_path, index=False)
-    st.write(f"DEBUG: Local file '{local_path}' saved with shape: {df.shape}")
     try:
         upload_to_gdrive(local_path, gdrive_file_name)
-        st.write(f"DEBUG: Uploaded '{gdrive_file_name}' to Google Drive.")
     except Exception as e:
         st.error(f"Failed to upload assignments to Google Drive: {e}")
 
@@ -308,16 +299,8 @@ else:
         prompt = st.chat_input("Your message", key=f"chat_input_{current_task_index}")
         if prompt:
             if "variant" not in st.session_state:
-                st.write("DEBUG: User has no variant assigned. Beginning assignment process.")
-
+                # Force re-load the assignments DataFrame directly from GDrive
                 assignments_df_from_gdrive = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
-
-                # --- NEW DEBUGGING STEP & SANITY CHECK ---
-                st.write(f"DEBUG: DF from GDrive immediately before variant_counts: Is empty? {assignments_df_from_gdrive.empty}")
-                st.write(f"DEBUG: DF from GDrive 'variant' column unique values: {assignments_df_from_gdrive['variant'].unique().tolist() if 'variant' in assignments_df_from_gdrive.columns else 'Column not found'}")
-                st.write(f"DEBUG: DF from GDrive 'variant' column value counts raw:\n{assignments_df_from_gdrive['variant'].value_counts() if 'variant' in assignments_df_from_gdrive.columns else 'Column not found'}")
-                # --- END NEW DEBUGGING STEP ---
-
 
                 user_assignment = assignments_df_from_gdrive[
                     assignments_df_from_gdrive["user_id"] == st.session_state.user_id
@@ -325,16 +308,11 @@ else:
 
                 if not user_assignment.empty:
                     st.session_state.variant = user_assignment["variant"].iloc[0]
-                    st.write(f"DEBUG: Existing user {st.session_state.user_id} detected from GDrive. Assigned variant: {st.session_state.variant}")
                 else:
-                    st.write(f"DEBUG: New user {st.session_state.user_id} detected. Calculating new variant.")
-
                     # Calculate variant counts from the freshly loaded DataFrame
                     variant_counts = assignments_df_from_gdrive["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
-                    st.write(f"DEBUG: Current variant counts: {variant_counts.to_dict()}")
                     min_count = variant_counts.min()
                     least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
-                    st.write(f"DEBUG: Least assigned variants: {least_assigned_variants}, min_count: {min_count}")
                     st.session_state.variant = random.choice(least_assigned_variants)
 
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
@@ -342,7 +320,6 @@ else:
                     updated_assignments_df = pd.concat([assignments_df_from_gdrive, new_assignment], ignore_index=True)
 
                     save_assignments(updated_assignments_df, ASSIGNMENTS_FILE)
-                    st.write(f"DEBUG: Assigned new variant: {st.session_state.variant}")
 
             with st.chat_message("user"):
                 st.markdown(prompt)
