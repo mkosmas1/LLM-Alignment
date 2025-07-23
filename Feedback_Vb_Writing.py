@@ -10,16 +10,18 @@ import random
 import openai
 from datetime import datetime
 import pandas as pd
-from io import BytesIO
+from io import BytesIO # Important: Use BytesIO for in-memory file handling
 from pathlib import Path
 import os
-import time # Import time for st.spinner
+import time
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
-# --- Function definition for Google Drive upload ---
+# --- Function definition for Google Drive upload (No Change Needed Here) ---
+# This part is fine as it writes to local_path before uploading.
+# The critical part is that the *next session's download* needs to be robust.
 def upload_to_gdrive(file_path, file_name_on_drive):
     creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
     service = build("drive", "v3", credentials=creds)
@@ -62,8 +64,10 @@ def upload_to_gdrive(file_path, file_name_on_drive):
         ).execute()
         # st.success(f"Uploaded '{file_name_on_drive}' to Google Drive.") # For debugging
 
-# --- Function definition for Google Drive download ---
-def download_from_gdrive(file_name_on_drive, local_file_path):
+# --- Function definition for Google Drive download (MODIFIED) ---
+# This function will now return the file content as bytes,
+# instead of saving it to a local file.
+def download_from_gdrive_to_memory(file_name_on_drive):
     creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
     service = build("drive", "v3", credentials=creds)
 
@@ -80,18 +84,18 @@ def download_from_gdrive(file_name_on_drive, local_file_path):
         file_id = items[0]['id']
         request = service.files().get_media(fileId=file_id)
 
-        file_content = BytesIO()
-        downloader = MediaIoBaseDownload(file_content, request)
+        file_content_buffer = BytesIO() # Use BytesIO to store content in memory
+        downloader = MediaIoBaseDownload(file_content_buffer, request)
         done = False
         while done is False:
             status, done = downloader.next_chunk()
 
-        file_content.seek(0)
-
-        with open(local_file_path, "wb") as f:
-            f.write(file_content.read())
-        return True
-    return False
+        file_content_buffer.seek(0) # Rewind the buffer to the beginning
+        st.write(f"DEBUG: Successfully downloaded '{file_name_on_drive}' from GDrive. Content size: {len(file_content_buffer.getvalue())} bytes.")
+        return file_content_buffer.getvalue() # Return the bytes content
+    else:
+        st.write(f"DEBUG: File '{file_name_on_drive}' not found on Google Drive.")
+        return None # Indicate that the file was not found
 
 # Set your OpenAI API key
 client = openai.OpenAI(api_key=st.secrets["openai_api_key"])
@@ -126,33 +130,45 @@ if "show_landing_page" not in st.session_state:
 if "distractor_complete" not in st.session_state:
     st.session_state.distractor_complete = False # Track completion of the distractor task
 
-# --- VARIANT ASSIGNMENT (FILE-BASED) ---
+# --- VARIANT ASSIGNMENT (FILE-BASED) - MODIFIED load_assignments ---
+# This function is now entirely rewritten to use download_from_gdrive_to_memory
 def load_assignments(filename):
     gdrive_file_name = Path(filename).name
-    local_path = Path(filename)
 
     try:
-        if download_from_gdrive(gdrive_file_name, local_path):
-            return pd.read_csv(local_path)
+        # Attempt to download directly into memory
+        file_bytes = download_from_gdrive_to_memory(gdrive_file_name)
+
+        if file_bytes:
+            # Read the CSV directly from the in-memory bytes
+            df = pd.read_csv(BytesIO(file_bytes))
+            st.write(f"DEBUG: Loaded assignments from GDrive into DataFrame. Shape: {df.shape}")
+            st.write(f"DEBUG: Loaded assignments head:\n{df.head()}") # Show what was actually loaded
+            return df
+        else:
+            # If no content was downloaded (e.g., file not found on GDrive)
+            st.warning(f"No content downloaded for '{gdrive_file_name}' from Google Drive. Creating new DataFrame.")
+            return pd.DataFrame(columns=["user_id", "variant"])
+
     except Exception as e:
-        st.warning(f"Could not download '{gdrive_file_name}' from Google Drive: {e}. Checking local file.")
+        # Catch any errors during download or pandas reading
+        st.error(f"Failed to load assignments from Google Drive: {e}. Creating new DataFrame.")
+        return pd.DataFrame(columns=["user_id", "variant"])
 
-    if local_path.exists():
-        return pd.read_csv(local_path)
-
-    st.info("No existing assignment file found (local or Drive), creating new DataFrame.")
-    return pd.DataFrame(columns=["user_id", "variant"])
-
+# --- MODIFIED save_assignments (no change, just included for completeness) ---
 def save_assignments(df, filename):
     local_path = Path(filename)
     gdrive_file_name = local_path.name
 
     df.to_csv(local_path, index=False)
+    st.write(f"DEBUG: Local file '{local_path}' saved with shape: {df.shape}")
     try:
         upload_to_gdrive(local_path, gdrive_file_name)
+        st.write(f"DEBUG: Uploaded '{gdrive_file_name}' to Google Drive.")
     except Exception as e:
         st.error(f"Failed to upload assignments to Google Drive: {e}")
 
+# This line runs at the start of every Streamlit session
 assignments_df = load_assignments(ASSIGNMENTS_FILE)
 
 # --- LLM FUNCTIONS ---
@@ -344,6 +360,7 @@ else:
 
                 if not user_assignment.empty:
                     st.session_state.variant = user_assignment["variant"].iloc[0]
+                    st.write(f"DEBUG: Existing user {st.session_state.user_id} detected. Assigned variant: {st.session_state.variant}")
                 else:
                     st.write(f"DEBUG: New user {st.session_state.user_id} detected.")
                     variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
@@ -352,18 +369,20 @@ else:
                     least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
                     st.write(f"DEBUG: Least assigned variants: {least_assigned_variants}, min_count: {min_count}")
                     st.session_state.variant = random.choice(least_assigned_variants)
-                    st.write(f"DEBUG: Assigned variant: {st.session_state.variant}")
-
-
-                    #variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
-                    #min_count = variant_counts.min()
-                    #least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
-                    #st.session_state.variant = random.choice(least_assigned_variants)
-
 
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
+                    # Use pd.concat for adding new rows to a DataFrame
+                    # Important: We need to assign the result back to assignments_df
+                    # so that the updated DataFrame is used for saving.
+                    # It also needs to be in a scope that the save_assignments function can access,
+                    # so perhaps make assignments_df a global variable or pass it.
+                    # For a Streamlit app, re-assigning at the top level is fine as it re-runs.
+                    # However, to ensure *this session* has the updated DF for its own assignment,
+                    # we do this concat.
+                    global assignments_df # Declare assignments_df as global to modify it
                     assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
                     save_assignments(assignments_df, ASSIGNMENTS_FILE)
+                    st.write(f"DEBUG: Assigned new variant: {st.session_state.variant}")
 
             # Display user message immediately
             with st.chat_message("user"):
