@@ -371,16 +371,11 @@ else:
                     st.session_state.variant = random.choice(least_assigned_variants)
 
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
-                    # Use pd.concat for adding new rows to a DataFrame
-                    # Important: We need to assign the result back to assignments_df
-                    # so that the updated DataFrame is used for saving.
-                    # It also needs to be in a scope that the save_assignments function can access,
-                    # so perhaps make assignments_df a global variable or pass it.
-                    # For a Streamlit app, re-assigning at the top level is fine as it re-runs.
-                    # However, to ensure *this session* has the updated DF for its own assignment,
-                    # we do this concat.
-                    global assignments_df # Declare assignments_df as global to modify it
+                    # --- CRITICAL FIX IS HERE ---
+                    # Remove the 'global assignments_df' declaration inside this block.
+                    # The assignments_df on the left side of the assignment will correctly refer to the global one.
                     assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
+                    # --- END CRITICAL FIX ---
                     save_assignments(assignments_df, ASSIGNMENTS_FILE)
                     st.write(f"DEBUG: Assigned new variant: {st.session_state.variant}")
 
