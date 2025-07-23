@@ -19,9 +19,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
-# --- Function definition for Google Drive upload (No Change Needed Here) ---
-# This part is fine as it writes to local_path before uploading.
-# The critical part is that the *next session's download* needs to be robust.
+# --- Function definition for Google Drive upload ---
 def upload_to_gdrive(file_path, file_name_on_drive):
     creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
     service = build("drive", "v3", credentials=creds)
@@ -35,7 +33,6 @@ def upload_to_gdrive(file_path, file_name_on_drive):
     ).execute()
     items = results.get('files', [])
 
-    # Determine mimetype based on file extension
     mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if file_name_on_drive.endswith('.xlsx') else "text/csv"
 
     media = MediaIoBaseUpload(open(file_path, "rb"),
@@ -64,9 +61,7 @@ def upload_to_gdrive(file_path, file_name_on_drive):
         ).execute()
         # st.success(f"Uploaded '{file_name_on_drive}' to Google Drive.") # For debugging
 
-# --- Function definition for Google Drive download (MODIFIED) ---
-# This function will now return the file content as bytes,
-# instead of saving it to a local file.
+# --- Function definition for Google Drive download (returns content as bytes) ---
 def download_from_gdrive_to_memory(file_name_on_drive):
     creds = service_account.Credentials.from_service_account_info(st.secrets["gdrive"])
     service = build("drive", "v3", credentials=creds)
@@ -113,10 +108,6 @@ if "user_id" not in st.session_state:
 
 if "current_task_index" not in st.session_state:
     st.session_state.current_task_index = 0
-    # Initialize a dictionary to track if a prompt has been submitted for each task
-    # This needs to be done after task_descriptions is defined, or ensure its size is known
-    # For now, let's make it flexible by creating it later or assuming max tasks
-    # Re-evaluating this based on task_descriptions length below.
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [] # Stores ALL chat interactions for the current user across tasks
@@ -130,32 +121,28 @@ if "show_landing_page" not in st.session_state:
 if "distractor_complete" not in st.session_state:
     st.session_state.distractor_complete = False # Track completion of the distractor task
 
-# --- VARIANT ASSIGNMENT (FILE-BASED) - MODIFIED load_assignments ---
-# This function is now entirely rewritten to use download_from_gdrive_to_memory
-def load_assignments(filename):
+# --- VARIANT ASSIGNMENT (MODIFIED load_assignments and session_state storage) ---
+def load_assignments_data(filename): # Renamed to avoid confusion with the global variable
     gdrive_file_name = Path(filename).name
-
     try:
-        # Attempt to download directly into memory
         file_bytes = download_from_gdrive_to_memory(gdrive_file_name)
-
         if file_bytes:
-            # Read the CSV directly from the in-memory bytes
             df = pd.read_csv(BytesIO(file_bytes))
             st.write(f"DEBUG: Loaded assignments from GDrive into DataFrame. Shape: {df.shape}")
-            st.write(f"DEBUG: Loaded assignments head:\n{df.head()}") # Show what was actually loaded
+            st.write(f"DEBUG: Loaded assignments head:\n{df.head()}")
             return df
         else:
-            # If no content was downloaded (e.g., file not found on GDrive)
             st.warning(f"No content downloaded for '{gdrive_file_name}' from Google Drive. Creating new DataFrame.")
             return pd.DataFrame(columns=["user_id", "variant"])
-
     except Exception as e:
-        # Catch any errors during download or pandas reading
         st.error(f"Failed to load assignments from Google Drive: {e}. Creating new DataFrame.")
         return pd.DataFrame(columns=["user_id", "variant"])
 
-# --- MODIFIED save_assignments (no change, just included for completeness) ---
+# Initialize assignments_df in session state if it's not already there for this session
+if "assignments_df_global" not in st.session_state:
+    st.session_state.assignments_df_global = load_assignments_data(ASSIGNMENTS_FILE)
+
+# --- MODIFIED save_assignments (No functional change, just included for context) ---
 def save_assignments(df, filename):
     local_path = Path(filename)
     gdrive_file_name = local_path.name
@@ -167,9 +154,6 @@ def save_assignments(df, filename):
         st.write(f"DEBUG: Uploaded '{gdrive_file_name}' to Google Drive.")
     except Exception as e:
         st.error(f"Failed to upload assignments to Google Drive: {e}")
-
-# This line runs at the start of every Streamlit session
-assignments_df = load_assignments(ASSIGNMENTS_FILE)
 
 # --- LLM FUNCTIONS ---
 def call_llm(prompt, variant):
@@ -247,8 +231,6 @@ def distractor_task():
         st.session_state.prompt_submitted_for_task[st.session_state.current_task_index] = True
 
         # --- OPTIMIZED EXCEL LOGGING AND SINGLE GOOGLE DRIVE UPLOAD ---
-        # This block now triggers ONLY when the user completes the distractor task
-        #st.write("Saving all chat logs and uploading to Google Drive...")
         try:
             full_log_df = pd.DataFrame(st.session_state.chat_history)
 
@@ -267,11 +249,7 @@ def distractor_task():
                 with pd.ExcelWriter(log_file_path, engine='openpyxl') as writer:
                     full_log_df.to_excel(writer, index=False, header=True)
 
-            #st.success("Chat logs saved locally.")
-
-            # Upload the consolidated log file to Google Drive
             upload_to_gdrive(str(log_file_path), CHAT_LOG_FILE)
-            #st.success("Chat logs uploaded to Google Drive.")
 
         except Exception as e:
             st.error(f"Error saving or uploading chat logs: {e}")
@@ -341,7 +319,6 @@ else:
         task_func()
     else:
         # Display chat history for the current task only (filtered from st.session_state.chat_history)
-        # This will show only the messages relevant to the current task
         current_task_chats = [
             chat for chat in st.session_state.chat_history
             if chat["task_index"] == current_task_index
@@ -352,18 +329,22 @@ else:
             with st.chat_message("assistant"):
                 st.markdown(chat["response"])
 
-        prompt = st.chat_input("Your message", key=f"chat_input_{current_task_index}") # Unique key for each task's input
+        prompt = st.chat_input("Your message", key=f"chat_input_{current_task_index}")
         if prompt:
-            # --- NEW LOGIC: Assign variant ONLY on first prompt submission if not already assigned ---
+            # --- Assign variant ONLY on first prompt submission if not already assigned ---
             if "variant" not in st.session_state:
-                user_assignment = assignments_df[assignments_df["user_id"] == st.session_state.user_id]
+                # Always reference from session_state for the latest loaded DF
+                user_assignment = st.session_state.assignments_df_global[
+                    st.session_state.assignments_df_global["user_id"] == st.session_state.user_id
+                ]
 
                 if not user_assignment.empty:
                     st.session_state.variant = user_assignment["variant"].iloc[0]
                     st.write(f"DEBUG: Existing user {st.session_state.user_id} detected. Assigned variant: {st.session_state.variant}")
                 else:
                     st.write(f"DEBUG: New user {st.session_state.user_id} detected.")
-                    variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
+                    # Calculate variant counts from the DataFrame in session_state
+                    variant_counts = st.session_state.assignments_df_global["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
                     st.write(f"DEBUG: Current variant counts: {variant_counts.to_dict()}")
                     min_count = variant_counts.min()
                     least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
@@ -371,12 +352,12 @@ else:
                     st.session_state.variant = random.choice(least_assigned_variants)
 
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
-                    # --- CRITICAL FIX IS HERE ---
-                    # Remove the 'global assignments_df' declaration inside this block.
-                    # The assignments_df on the left side of the assignment will correctly refer to the global one.
-                    assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
-                    # --- END CRITICAL FIX ---
-                    save_assignments(assignments_df, ASSIGNMENTS_FILE)
+
+                    # Update the DataFrame stored in session_state
+                    st.session_state.assignments_df_global = pd.concat([st.session_state.assignments_df_global, new_assignment], ignore_index=True)
+
+                    # Save the updated DataFrame (from session_state) to Google Drive
+                    save_assignments(st.session_state.assignments_df_global, ASSIGNMENTS_FILE)
                     st.write(f"DEBUG: Assigned new variant: {st.session_state.variant}")
 
             # Display user message immediately
@@ -406,9 +387,6 @@ else:
             # Mark that a prompt has been submitted for the current task
             st.session_state.prompt_submitted_for_task[current_task_index] = True
 
-            # No explicit st.rerun() here, as chat_input handles input clearing
-            # and chat history is updated by the next rerun or user interaction.
-
     # Determine if the "Go to next task" button should be disabled
     disable_next_button = True
     if current_task_index == len(task_descriptions) - 1: # This is the last task (distractor quiz)
@@ -420,10 +398,6 @@ else:
     if current_task_index < total_tasks - 1:
         if st.button("Go to next task", disabled=disable_next_button):
             st.session_state.current_task_index += 1
-            # Important: Clear current chat history shown in the current task view.
-            # The full history is still in st.session_state.chat_history for logging.
-            # No explicit clear of st.session_state.chat_history needed here
-            # as the display logic now filters by task_index.
             st.rerun()
     else:
         # This block for the final "Take Survey" button (after distractor task)
@@ -432,6 +406,5 @@ else:
 
         if st.session_state.show_survey:
             survey_url = f"{SURVEY_BASE_URL}?App_Variant={st.session_state.variant}&User_ID={st.session_state.user_id}"
-            #st.success("Thank you! Please take the short survey below:")
             st.markdown(f"[Go to Survey]({survey_url})", unsafe_allow_html=True)
 
