@@ -209,18 +209,38 @@ def distractor_task():
         st.session_state.prompt_submitted_for_task[st.session_state.current_task_index] = True
 
         try:
-            full_log_df = pd.DataFrame(st.session_state.chat_history)
-            log_file_path = Path(CHAT_LOG_FILE)
-
-            if log_file_path.exists() and log_file_path.stat().st_size > 0:
-                with pd.ExcelWriter(log_file_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-                    existing_df = pd.read_excel(log_file_path)
-                    start_row = len(existing_df) + 1
-                    full_log_df.to_excel(writer, index=False, header=False, startrow=start_row)
+            # Load existing chat logs from Google Drive
+            existing_chat_log_bytes = download_from_gdrive_to_memory(CHAT_LOG_FILE)
+            if existing_chat_log_bytes:
+                existing_chat_df = pd.read_excel(BytesIO(existing_chat_log_bytes))
             else:
-                with pd.ExcelWriter(log_file_path, engine='openpyxl') as writer:
-                    full_log_df.to_excel(writer, index=False, header=True)
+                existing_chat_df = pd.DataFrame() # Start with an empty DataFrame if file doesn't exist
 
+            # Convert current session's chat history to a DataFrame
+            current_session_chat_df = pd.DataFrame(st.session_state.chat_history)
+
+            # Combine existing and current session chat history
+            # Use pd.concat and drop_duplicates to ensure no re-writing of old data
+            # Define subset for identifying duplicates. 'timestamp', 'user_id', 'task_index', 'prompt'
+            # should uniquely identify a chat turn for a user within a task.
+            combined_chat_df = pd.concat([existing_chat_df, current_session_chat_df], ignore_index=True)
+
+            # Drop duplicates based on a combination of columns. Keep the last one in case of updates.
+            combined_chat_df.drop_duplicates(
+                subset=['user_id', 'task_index', 'prompt', 'response'], # Consider what makes a chat entry unique
+                keep='last', # Keep the most recent entry if duplicates occur
+                inplace=True
+            )
+
+            # Sort by timestamp to maintain order, if desired for readability in Excel
+            combined_chat_df = combined_chat_df.sort_values(by='timestamp').reset_index(drop=True)
+
+            # Save the combined, de-duplicated DataFrame to a local Excel file
+            log_file_path = Path(CHAT_LOG_FILE)
+            with pd.ExcelWriter(log_file_path, engine='openpyxl') as writer:
+                combined_chat_df.to_excel(writer, index=False, header=True)
+
+            # Upload the de-duplicated file to Google Drive
             upload_to_gdrive(str(log_file_path), CHAT_LOG_FILE)
 
         except Exception as e:
