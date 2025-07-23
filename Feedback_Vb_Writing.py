@@ -46,7 +46,6 @@ def upload_to_gdrive(file_path, file_name_on_drive):
             media_body=media,
             supportsAllDrives=True
         ).execute()
-        # st.success(f"Updated '{file_name_on_drive}' on Google Drive.")
     else:
         file_metadata = {
             "name": file_name_on_drive,
@@ -59,7 +58,6 @@ def upload_to_gdrive(file_path, file_name_on_drive):
             fields="id",
             supportsAllDrives=True
         ).execute()
-        # st.success(f"Uploaded '{file_name_on_drive}' to Google Drive.")
 
 # --- Function definition for Google Drive download (returns content as bytes) ---
 def download_from_gdrive_to_memory(file_name_on_drive):
@@ -121,28 +119,23 @@ if "distractor_complete" not in st.session_state:
     st.session_state.distractor_complete = False
 
 # --- VARIANT ASSIGNMENT FUNCTIONS ---
-# This function loads the data from Google Drive.
-# We'll use this function directly within the assignment logic now.
 def load_assignments_data_from_gdrive(filename):
     gdrive_file_name = Path(filename).name
     try:
         file_bytes = download_from_gdrive_to_memory(gdrive_file_name)
         if file_bytes:
-            df = pd.read_csv(BytesIO(file_bytes))
+            # IMPORTANT: Explicitly set dtype for 'variant' column here
+            df = pd.read_csv(BytesIO(file_bytes), dtype={'user_id': str, 'variant': str})
             st.write(f"DEBUG: Loaded assignments from GDrive into DataFrame. Shape: {df.shape}")
             st.write(f"DEBUG: Loaded assignments head:\n{df.head()}")
+            st.write(f"DEBUG: Loaded assignments dtypes:\n{df.dtypes}") # New debug line
             return df
         else:
             st.warning(f"No content downloaded for '{gdrive_file_name}' from Google Drive. Returning empty DataFrame.")
-            return pd.DataFrame(columns=["user_id", "variant"])
+            return pd.DataFrame(columns=["user_id", "variant"], dtype=str) # Ensure empty DF has correct dtypes
     except Exception as e:
         st.error(f"Failed to load assignments from Google Drive: {e}. Returning empty DataFrame.")
-        return pd.DataFrame(columns=["user_id", "variant"])
-
-# Removed the top-level `if "assignments_df_global" not in st.session_state:`
-# and its call to `load_assignments_data_from_gdrive`.
-# This is because it seems to be ineffective in ensuring the state inside `if prompt:`.
-# We will now explicitly load the assignments when needed for assignment logic.
+        return pd.DataFrame(columns=["user_id", "variant"], dtype=str) # Ensure empty DF has correct dtypes
 
 
 # --- Save assignments ---
@@ -192,7 +185,6 @@ task_descriptions = [
     "Before moving on to the survey, please take this short quiz." # Task 6
 ]
 
-# Initialize prompt_submitted_for_task after task_descriptions is defined
 if "prompt_submitted_for_task" not in st.session_state:
     st.session_state.prompt_submitted_for_task = {i: False for i in range(len(task_descriptions))}
 
@@ -216,10 +208,8 @@ def distractor_task():
         }
     ]
 
-    # Display quiz questions
     for i, q in enumerate(questions):
         st.subheader(f"Question {i+1}")
-        # Using a unique key for each radio button per question
         st.radio(q["question"], q["options"], key=f"quiz_q{i}_{st.session_state.user_id}", index=None)
 
 
@@ -317,14 +307,17 @@ else:
 
         prompt = st.chat_input("Your message", key=f"chat_input_{current_task_index}")
         if prompt:
-            # --- Variant Assignment Logic ---
             if "variant" not in st.session_state:
                 st.write("DEBUG: User has no variant assigned. Beginning assignment process.")
 
-                # Force re-load the assignments DataFrame directly from GDrive
-                # this time, instead of relying on st.session_state to be perfectly consistent.
-                # This ensures we get the latest cumulative data right at the point of assignment.
                 assignments_df_from_gdrive = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
+
+                # --- NEW DEBUGGING STEP & SANITY CHECK ---
+                st.write(f"DEBUG: DF from GDrive immediately before variant_counts: Is empty? {assignments_df_from_gdrive.empty}")
+                st.write(f"DEBUG: DF from GDrive 'variant' column unique values: {assignments_df_from_gdrive['variant'].unique().tolist() if 'variant' in assignments_df_from_gdrive.columns else 'Column not found'}")
+                st.write(f"DEBUG: DF from GDrive 'variant' column value counts raw:\n{assignments_df_from_gdrive['variant'].value_counts() if 'variant' in assignments_df_from_gdrive.columns else 'Column not found'}")
+                # --- END NEW DEBUGGING STEP ---
+
 
                 user_assignment = assignments_df_from_gdrive[
                     assignments_df_from_gdrive["user_id"] == st.session_state.user_id
@@ -346,14 +339,11 @@ else:
 
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
 
-                    # Update the DataFrame by concatenating the new assignment to the freshly loaded data
                     updated_assignments_df = pd.concat([assignments_df_from_gdrive, new_assignment], ignore_index=True)
 
-                    # Save the updated DataFrame (which now includes all previous assignments + new one) to Google Drive
                     save_assignments(updated_assignments_df, ASSIGNMENTS_FILE)
                     st.write(f"DEBUG: Assigned new variant: {st.session_state.variant}")
 
-            # Display user message immediately
             with st.chat_message("user"):
                 st.markdown(prompt)
 
