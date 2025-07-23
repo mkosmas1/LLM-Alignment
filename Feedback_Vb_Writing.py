@@ -345,10 +345,21 @@ else:
                 if not user_assignment.empty:
                     st.session_state.variant = user_assignment["variant"].iloc[0]
                 else:
+                    st.write(f"DEBUG: New user {st.session_state.user_id} detected.")
                     variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
+                    st.write(f"DEBUG: Current variant counts: {variant_counts.to_dict()}")
                     min_count = variant_counts.min()
                     least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
+                    st.write(f"DEBUG: Least assigned variants: {least_assigned_variants}, min_count: {min_count}")
                     st.session_state.variant = random.choice(least_assigned_variants)
+                    st.write(f"DEBUG: Assigned variant: {st.session_state.variant}")
+
+
+                    #variant_counts = assignments_df["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
+                    #min_count = variant_counts.min()
+                    #least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
+                    #st.session_state.variant = random.choice(least_assigned_variants)
+
 
                     new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
                     assignments_df = pd.concat([assignments_df, new_assignment], ignore_index=True)
