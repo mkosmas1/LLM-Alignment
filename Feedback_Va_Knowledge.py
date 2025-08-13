@@ -308,10 +308,9 @@ else:
     st.markdown(f"**Current Task {current_task_index + 1}/{total_tasks}:** {current_task_description}")
 
     if task_func:
-        # e.g., the distractor quiz
         task_func()
     else:
-        # show chat history for this task (no boxing on history)
+        # Show chat history for this task (NO boxing here)
         current_task_chats = [
             chat for chat in st.session_state.chat_history
             if chat["task_index"] == current_task_index
@@ -322,10 +321,10 @@ else:
             with st.chat_message("assistant"):
                 st.markdown(chat["response"])
 
-        # input
+        # Prompt input
         prompt = st.chat_input("Your message", key=f"chat_input_{current_task_index}")
         if prompt:
-            # ensure variant is set
+            # Ensure variant assignment
             if "variant" not in st.session_state:
                 assignments_df_from_gdrive = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
                 user_assignment = assignments_df_from_gdrive[
@@ -342,11 +341,14 @@ else:
                     updated_assignments_df = pd.concat([assignments_df_from_gdrive, new_assignment], ignore_index=True)
                     save_assignments(updated_assignments_df, ASSIGNMENTS_FILE)
 
-            # show user's message
+            # Show user's prompt
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            # call the LLM
+            # Start streaming flag
+            st.session_state.streaming_in_progress = True
+
+            # Call LLM
             with st.spinner("Thinking..."):
                 current_task_chats_for_llm = [
                     {"role": "user", "content": chat["prompt"]} if i % 2 == 0 else {"role": "assistant", "content": chat["response"]}
@@ -355,36 +357,43 @@ else:
                 ]
                 response = call_llm(prompt, st.session_state.variant, current_task_chats_for_llm)
 
-            # render assistant reply
+            # Mark streaming finished
+            st.session_state.streaming_in_progress = False
+
+            # Render assistant reply (box only for variant 1 after full completion)
             with st.chat_message("assistant"):
                 if st.session_state.variant == "1":
                     import re
 
-                    # 1) find "company values" (incl. "company's") anywhere
-                    val = re.search(r"\b(?:the\s+)?company'?s?\s+values\b", response, re.IGNORECASE)
-                    if val:
-                        # 2) ensure "Recommendations" appears AFTER that
-                        rec = re.search(r"(?:\*\*\s*)?recommendations?:", response[val.start():], re.IGNORECASE)
-                        if rec:
-                            rec_abs = val.start() + rec.start()
+                    # 1) Find Recommendations header
+                    rec_hdr = re.search(r"(?:^|\n)\s*(?:\*\*\s*)?recommendations?:", response, re.IGNORECASE)
+                    if rec_hdr:
+                        rec_abs = rec_hdr.start()
 
-                            # 3) find sentence start (beginning of string, last . ! ? + space, or last newline)
+                        # 2) Find LAST occurrence of "company values" before Recommendations
+                        vals = list(re.finditer(r"\b(?:the\s+)?company'?s?\s+values\b", response[:rec_abs], re.IGNORECASE))
+                        if vals:
+                            val = vals[-1]  # last one before recs
+
+                            # 3) Find sentence start or fallback to ~30 chars before
                             p = val.start()
-                            candidates = [
-                                response.rfind(". ", 0, p) + 2,
-                                response.rfind("! ", 0, p) + 2,
-                                response.rfind("? ", 0, p) + 2,
-                                response.rfind("\n", 0, p) + 1,
-                                0
-                            ]
-                            start = max(c for c in candidates if c >= 0)
+                            candidates = []
+                            dot = response.rfind(". ", 0, p)
+                            ex  = response.rfind("! ", 0, p)
+                            qm  = response.rfind("? ", 0, p)
+                            nl  = response.rfind("\n", 0, p)
+                            if dot != -1: candidates.append(dot + 2)
+                            if ex  != -1: candidates.append(ex  + 2)
+                            if qm  != -1: candidates.append(qm  + 2)
+                            if nl  != -1: candidates.append(nl  + 1)
+                            candidates.append(max(0, p - 30))
+                            start = max(candidates)
 
-                            # 4) end of boxed block: include the Recommendations header + its bullets/numbered lines.
+                            # 4) End of box after recommendations block
                             tail = response[rec_abs:]
                             pos = 0
                             end_in_tail = None
                             while True:
-                                # find a blank line followed by a non-bullet line
                                 m = re.search(r"\n\s*\n(?=\s*\S)", tail[pos:], flags=re.MULTILINE)
                                 if not m:
                                     break
@@ -393,24 +402,21 @@ else:
                                 if next_line_end == -1:
                                     next_line_end = len(tail)
                                 next_line = tail[next_line_start:next_line_end]
-
-                                # bullet or numbered list?
                                 if re.match(r"\s*(?:[-*•]|(?:\d+[.)]))\s+", next_line):
-                                    pos = next_line_start  # keep consuming bullets
+                                    pos = next_line_start
                                     continue
                                 else:
                                     end_in_tail = pos + m.start()
                                     break
-
                             end = rec_abs + (end_in_tail if end_in_tail is not None else len(tail))
 
+                            # 5) Split and render
                             before = response[:start].rstrip()
                             boxed = response[start:end].strip()
                             after = response[end:].lstrip()
 
                             if before:
                                 st.markdown(before)
-
                             st.markdown(
                                 f"""
                                 <div style="border: 2px solid #2ecc71; border-radius: 8px; padding: 10px; background-color: #f9fffa;">
@@ -419,19 +425,16 @@ else:
                                 """,
                                 unsafe_allow_html=True
                             )
-
                             if after:
                                 st.markdown(after)
                         else:
-                            # no Recommendations after values -> no box
                             st.markdown(response)
                     else:
-                        # no values phrase -> no box
                         st.markdown(response)
                 else:
                     st.markdown(response)
 
-            # log the turn
+            # Log new turn
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "user_id": st.session_state.user_id,
@@ -443,7 +446,7 @@ else:
             st.session_state.chat_history.append(log_entry)
             st.session_state.prompt_submitted_for_task[current_task_index] = True
 
-    # navigation (unchanged)
+    # Navigation buttons
     disable_next_button = True
     if current_task_index == total_tasks - 1:
         disable_next_button = not st.session_state.get("distractor_complete", False)
@@ -457,9 +460,7 @@ else:
     else:
         if st.button("Take Survey", disabled=disable_next_button):
             st.session_state.show_survey = True
-
         if st.session_state.show_survey:
             survey_url = f"{SURVEY_BASE_URL}?App_Variant={st.session_state.variant}&User_ID={st.session_state.user_id}"
             st.markdown(f"[Go to Survey]({survey_url})", unsafe_allow_html=True)
-
 
