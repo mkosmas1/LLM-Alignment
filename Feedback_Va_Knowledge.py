@@ -361,9 +361,9 @@ else:
 
                     # 1) Find "company (’s) values" with up to 30 chars of lead-in (to include "**Our")
                     values_match = re.search(
-                        r".{0,30}(?:(?:the\s+)?company'?s?\s+values)",
+                        r"(?:^|[\.\!\?\n]\s*)(?:(?:\*\*)?\s*)?(?:(?:the\s+)?company'?s?\s+values)",
                         response,
-                        flags=re.IGNORECASE | re.DOTALL
+                        flags=re.IGNORECASE
                     )
 
                     if values_match:
