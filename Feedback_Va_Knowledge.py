@@ -365,17 +365,17 @@ else:
                 if st.session_state.variant == "1":
                     import re
 
-                    # 1) Find Recommendations header
-                    rec_hdr = re.search(r"(?:^|\n)\s*(?:\*\*\s*)?recommendations?:", response, re.IGNORECASE)
+                    # 1) Find a Recommendations header anywhere (bold optional, colon optional)
+                    rec_hdr = re.search(r"(?:\*\*\s*)?recommendations?\s*:?", response, re.IGNORECASE)
                     if rec_hdr:
                         rec_abs = rec_hdr.start()
 
-                        # 2) Find LAST occurrence of "company values" before Recommendations
+                        # 2) Find LAST occurrence of "company values" BEFORE that header
                         vals = list(re.finditer(r"\b(?:the\s+)?company'?s?\s+values\b", response[:rec_abs], re.IGNORECASE))
                         if vals:
                             val = vals[-1]  # last one before recs
 
-                            # 3) Find sentence start or fallback to ~30 chars before
+                            # 3) Start of box: nearest sentence start (., !, ?, or newline). Fallback to ~30 chars before match.
                             p = val.start()
                             candidates = []
                             dot = response.rfind(". ", 0, p)
@@ -386,15 +386,18 @@ else:
                             if ex  != -1: candidates.append(ex  + 2)
                             if qm  != -1: candidates.append(qm  + 2)
                             if nl  != -1: candidates.append(nl  + 1)
+                            # fallback to include "Our/**Our" but never the whole message
                             candidates.append(max(0, p - 30))
                             start = max(candidates)
 
-                            # 4) End of box after recommendations block
+                            # 4) End of box: include recommendations block.
+                            #    Scan paragraph-by-paragraph; continue while bullets, numbers, dash bullets, or plain sentences.
                             tail = response[rec_abs:]
                             pos = 0
                             end_in_tail = None
                             while True:
-                                m = re.search(r"\n\s*\n(?=\s*\S)", tail[pos:], flags=re.MULTILINE)
+                                # find a blank line before the next paragraph
+                                m = re.search(r"\r?\n\s*\r?\n(?=\s*\S)", tail[pos:], flags=re.MULTILINE)
                                 if not m:
                                     break
                                 next_line_start = pos + m.end()
@@ -402,13 +405,18 @@ else:
                                 if next_line_end == -1:
                                     next_line_end = len(tail)
                                 next_line = tail[next_line_start:next_line_end]
-                                # Allow bullets, numbers, dash, or plain sentence starts to continue recommendations
-                                if re.match(r"\s*(?:[-*•–]|(?:\d+[.)]))\s+", next_line) or next_line.strip()[:1].isalpha():
+
+                                # keep consuming if the next paragraph looks like part of recs:
+                                # - bullet markers -, *, •, – (en dash)
+                                # - numbered list "1." or "1)"
+                                # - OR a plain sentence (starts with a letter)
+                                if re.match(r"\s*(?:[-*•–]|(?:\d+[.)]))\s+", next_line) or (next_line.strip()[:1].isalpha()):
                                     pos = next_line_start
                                     continue
                                 else:
                                     end_in_tail = pos + m.start()
                                     break
+
                             end = rec_abs + (end_in_tail if end_in_tail is not None else len(tail))
 
                             # 5) Split and render
@@ -429,8 +437,10 @@ else:
                             if after:
                                 st.markdown(after)
                         else:
+                            # no 'company values' before recommendations -> don't box
                             st.markdown(response)
                     else:
+                        # no recommendations header -> don't box
                         st.markdown(response)
                 else:
                     st.markdown(response)
@@ -464,4 +474,5 @@ else:
         if st.session_state.show_survey:
             survey_url = f"{SURVEY_BASE_URL}?App_Variant={st.session_state.variant}&User_ID={st.session_state.user_id}"
             st.markdown(f"[Go to Survey]({survey_url})", unsafe_allow_html=True)
+
 
