@@ -380,21 +380,29 @@ else:
                             ]
                             start = max(c for c in candidates if c >= 0)
 
-                            # Find end after recommendations bullet list
+                            # --- Corrected end-of-box calculation ---
                             tail = response[rec_abs:]
+                            pos = 0
                             end_in_tail = None
                             while True:
-                                m = re.search(r"\n\s*\n(?=\s*\S)", tail, flags=re.MULTILINE)
+                                m = re.search(r"\r?\n\s*\r?\n(?=\s*\S)", tail[pos:], flags=re.MULTILINE)
                                 if not m:
                                     break
-                                next_block_start = m.end()
-                                if re.match(r"\s*[-*•]\s+", tail[next_block_start:]):
-                                    tail = tail[next_block_start:]
+                                next_para_start = pos + m.end()
+                                next_line_end = tail.find("\n", next_para_start)
+                                if next_line_end == -1:
+                                    next_line_end = len(tail)
+                                next_line = tail[next_para_start:next_line_end]
+                                if re.match(r"\s*(?:[-*•–]|(?:\d+[.)]))\s+", next_line) or (next_line.strip()[:1].isalpha()):
+                                    pos = next_para_start
                                     continue
                                 else:
-                                    end_in_tail = m.start()
+                                    end_in_tail = pos + m.start()
                                     break
                             end = rec_abs + (end_in_tail if end_in_tail is not None else len(tail))
+                            if end < rec_abs:  # defensive fallback
+                                end = len(response)
+                            # --- End fix ---
 
                             before = response[:start].rstrip()
                             boxed = response[start:end].strip()
