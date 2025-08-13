@@ -402,7 +402,8 @@ else:
                                 if next_line_end == -1:
                                     next_line_end = len(tail)
                                 next_line = tail[next_line_start:next_line_end]
-                                if re.match(r"\s*(?:[-*•]|(?:\d+[.)]))\s+", next_line):
+                                # Allow bullets, numbers, dash, or plain sentence starts to continue recommendations
+                                if re.match(r"\s*(?:[-*•–]|(?:\d+[.)]))\s+", next_line) or next_line.strip()[:1].isalpha():
                                     pos = next_line_start
                                     continue
                                 else:
