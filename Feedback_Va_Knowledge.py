@@ -305,132 +305,49 @@ else:
     current_task_description = task_descriptions[current_task_index]
     task_func = task_functions[current_task_index]
 
-    st.markdown(f"**Current Task {current_task_index + 1}/{total_tasks}:** {current_task_description}")
+    # Get the full LLM response first (avoid streaming partials here)
+    response = task_func(current_task_description)
 
-    if task_func:
-        task_func()
+    import re
+
+    # Match the sentence containing "company values" (or company's values)
+    # Capture from the sentence start until "Recommendations"
+    pattern = re.compile(
+        r"(?P<sentence>(?:^|(?<=[\.\!\?\n])\s+)[^.!\n]*?\bcompany'?s?\s+values\b[^.\n]*?(?=\s+recommendations?:))"
+        r"(?P<rest>[\s\S]*recommendations?:[\s\S]*)",
+        re.IGNORECASE
+    )
+
+    match = pattern.search(response)
+    if match:
+        boxed_text = (match.group("sentence") + match.group("rest")).strip()
+        st.markdown(
+            f"""
+            <div style="border: 2px solid #2ecc71; border-radius: 8px; padding: 10px; background-color: #f9fffa;">
+                {boxed_text}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        # Show the rest of the response without the boxed part
+        remaining_text = response.replace(boxed_text, "").strip()
+        if remaining_text:
+            st.markdown(remaining_text)
     else:
-        # Show prior chat for this task (NO boxing on history)
-        current_task_chats = [
-            chat for chat in st.session_state.chat_history
-            if chat["task_index"] == current_task_index
-        ]
-        for chat in current_task_chats:
-            with st.chat_message("user"):
-                st.markdown(chat["prompt"])
-            with st.chat_message("assistant"):
-                st.markdown(chat["response"])
+        st.markdown(response)
 
-        # Input
-        prompt = st.chat_input("Your message", key=f"chat_input_{current_task_index}")
-        if prompt:
-            # Ensure variant is set (same as your original)
-            if "variant" not in st.session_state:
-                assignments_df_from_gdrive = load_assignments_data_from_gdrive(ASSIGNMENTS_FILE)
-                user_assignment = assignments_df_from_gdrive[
-                    assignments_df_from_gdrive["user_id"] == st.session_state.user_id
-                ]
-                if not user_assignment.empty:
-                    st.session_state.variant = user_assignment["variant"].iloc[0]
-                else:
-                    variant_counts = assignments_df_from_gdrive["variant"].value_counts().reindex(LLM_VARIANTS, fill_value=0)
-                    min_count = variant_counts.min()
-                    least_assigned_variants = variant_counts[variant_counts == min_count].index.tolist()
-                    st.session_state.variant = random.choice(least_assigned_variants)
-                    new_assignment = pd.DataFrame({"user_id": [st.session_state.user_id], "variant": [st.session_state.variant]})
-                    updated_assignments_df = pd.concat([assignments_df_from_gdrive, new_assignment], ignore_index=True)
-                    save_assignments(updated_assignments_df, ASSIGNMENTS_FILE)
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "user_id": st.session_state.user_id,
+        "variant": st.session_state.variant,
+        "task_index": st.session_state.current_task_index,
+        "prompt": prompt,
+        "response": response,
+    }
+    st.session_state.chat_history.append(log_entry)
+    st.session_state.prompt_submitted_for_task[current_task_index] = True
 
-            # Show the user message
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-            # Call the LLM (no streaming)
-            with st.spinner("Thinking..."):
-                current_task_chats_for_llm = [
-                    {"role": "user", "content": chat["prompt"]} if i % 2 == 0 else {"role": "assistant", "content": chat["response"]}
-                    for i, chat in enumerate(st.session_state.chat_history)
-                    if chat["task_index"] == current_task_index
-                ]
-                response = call_llm(prompt, st.session_state.variant, current_task_chats_for_llm)
-
-            # Render the assistant reply (apply boxing only here, only when values -> recommendations)
-            with st.chat_message("assistant"):
-                if st.session_state.variant == "1":
-                    import re
-
-                    # 1) Find "company (’s) values" with up to 30 chars of lead-in (to include "**Our")
-                    values_match = re.search(
-                        r"(?:^|[\.\!\?\n]\s*)(?:(?:\*\*)?\s*)?(?:(?:the\s+)?company'?s?\s+values)",
-                        response,
-                        flags=re.IGNORECASE
-                    )
-
-                    if values_match:
-                        # 2) Ensure a "recommendations" section appears AFTER that
-                        rec_match = re.search(
-                            r"(?:\*\*\s*)?recommendations?:",
-                            response[values_match.start():],
-                            flags=re.IGNORECASE
-                        )
-
-                        if rec_match:
-                            # Calculate absolute indices
-                            box_start = values_match.start()
-                            rec_abs_start = values_match.start() + rec_match.start()
-
-                            # 3) Heuristic box end: stop at the first blank line that starts a line
-                            #    NOT beginning with a bullet or more "recommendations"
-                            tail = response[rec_abs_start:]
-                            boundary = re.search(
-                                r"\n\s*\n(?!\s*[-*•]|.*recommendations?:)",
-                                tail,
-                                flags=re.IGNORECASE
-                            )
-                            box_end = rec_abs_start + (boundary.start() if boundary else len(tail))
-
-                            # Split and render
-                            before = response[:box_start].rstrip()
-                            boxed_text = response[box_start:box_end].strip()
-                            after = response[box_end:].lstrip()
-
-                            if before:
-                                st.markdown(before)
-
-                            st.markdown(
-                                f"""
-                                <div style="border: 2px solid #2ecc71; border-radius: 8px; padding: 10px; background-color: #f9fffa;">
-                                    {boxed_text}
-                                </div>
-                                """,
-                                unsafe_allow_html=True
-                            )
-
-                            if after:
-                                st.markdown(after)
-                        else:
-                            # No "recommendations" after the values phrase -> do not box
-                            st.markdown(response)
-                    else:
-                        # No values phrase -> do not box
-                        st.markdown(response)
-                else:
-                    # Not variant 1 -> plain rendering
-                    st.markdown(response)
-
-            # Save the turn
-            log_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "user_id": st.session_state.user_id,
-                "variant": st.session_state.variant,
-                "task_index": st.session_state.current_task_index,
-                "prompt": prompt,
-                "response": response,
-            }
-            st.session_state.chat_history.append(log_entry)
-            st.session_state.prompt_submitted_for_task[current_task_index] = True
-
-    # Buttons / navigation (unchanged)
     disable_next_button = True
     if current_task_index == total_tasks - 1:
         disable_next_button = not st.session_state.get("distractor_complete", False)
